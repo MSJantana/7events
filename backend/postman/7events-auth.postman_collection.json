@@ -1,0 +1,469 @@
+{
+  "info": {
+    "name": "7events - Auth Google",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "code",
+      "value": ""
+    },
+    {
+      "key": "idToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    
+    {
+      "name": "Google Auth Flow",
+      "item": [
+        {
+          "name": "Auth URL (Google)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/google/url" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const data = pm.response.json();",
+            "if (data.url) { pm.environment.set('googleAuthUrl', data.url); }"
+          ] } }]
+        },
+        {
+          "name": "Abrir Consentimento (manual)",
+          "request": { "method": "GET", "url": "{{googleAuthUrl}}", "description": "Abra esta requisição e use 'Open in Browser' no Postman para abrir a página de login do Google. Após concluir o login, copie o parâmetro 'code' da URL de redirecionamento e cole em {{code}} no ambiente." },
+          "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+            "pm.test('URL de consentimento disponível', function () {",
+            "  pm.expect(pm.environment.get('googleAuthUrl')).to.be.a('string').and.not.empty;",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "Callback (raw JSON)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/google/callback?code={{code}}&raw=1" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const js = pm.response.json();",
+            "if (js.accessToken) pm.environment.set('accessToken', js.accessToken);",
+            "if (js.refreshToken) pm.environment.set('refreshToken', js.refreshToken);",
+            "if (js.user) pm.environment.set('userId', js.user.id);",
+            "if (js.error) pm.environment.set('lastError', js.error);",
+            "if (js.details) pm.environment.set('lastErrorDetails', typeof js.details==='string'?js.details:JSON.stringify(js.details))"
+          ] } }]
+        },
+        {
+          "name": "Auth (Google idToken)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/google", "body": { "mode": "raw", "raw": "{\n  \"idToken\": \"{{idToken}}\"\n}" } },
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "const t = pm.environment.get('idToken');",
+              "function b64urlDecode(s){ s=(s||'').replace(/-/g,'+').replace(/_/g,'/'); const pad=s.length%4; if(pad){ s += '='.repeat(4-pad); } return atob(s); }",
+              "if (t) {",
+              "  try {",
+              "    const header = JSON.parse(b64urlDecode(t.split('.')[0]||''));",
+              "    pm.environment.set('jwt_alg', header.alg||'');",
+              "  } catch (e) { console.warn('Falha ao inspecionar idToken:', e); }",
+              "}"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('idToken deve ser RS256 (Google)', function(){",
+              "  const alg = pm.environment.get('jwt_alg');",
+              "  pm.expect(alg, 'idToken deve ser emitido pelo Google (RS256)').to.eql('RS256');",
+              "});",
+              "const js = pm.response.json();",
+              "if (js.token) pm.environment.set('accessToken', js.token);",
+              "if (js.user && js.user.id) pm.environment.set('userId', js.user.id);",
+              "if (js.error) pm.environment.set('lastError', js.error);",
+              "if (js.details) pm.environment.set('lastErrorDetails', typeof js.details==='string'?js.details:JSON.stringify(js.details))"
+            ] } }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Dev Helpers",
+          "item": [
+            { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
+            { "name": "Load Env (server)", "request": { "method": "GET", "url": "{{baseUrl}}/debug/postman/env" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "Object.entries(js).forEach(([k,v]) => { if (typeof v === 'string') pm.environment.set(k, v); });" ] } }] },
+            { "name": "Dev Admin Token", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/dev/admin-token", "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"name\": \"Admin\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "if (js.token) pm.environment.set('accessToken', js.token);", "if (js.user && js.user.id) pm.environment.set('userId', js.user.id);" ] } }] },
+            { "name": "Dev Participant Token", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/dev/participant-token", "body": { "mode": "raw", "raw": "{\n  \"email\": \"participant@example.com\",\n  \"name\": \"Participant\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "if (js.token) pm.environment.set('otherAccessToken', js.token);", "if (js.user && js.user.id) pm.environment.set('otherUserId', js.user.id);" ] } }] },
+            { "name": "Debug: Cleanup DB (DEV)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/debug/cleanup" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Cleanup executado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] }
+          ]
+        },
+        {
+          "name": "Users: List",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/users" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Lista de usuários retornada (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }]
+        },
+        {
+          "name": "Orders: List All (Admin)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/orders" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Lista de pedidos (admin) (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+            "const list = pm.response.json();",
+            "pm.test('É um array', function(){ pm.expect(Array.isArray(list)).to.eql(true); });"
+          ] } }]
+        },
+        {
+          "name": "Users: Create",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/users", "body": { "mode": "raw", "raw": "{\n  \"email\": \"novo.usuario@example.com\",\n  \"name\": \"Novo Usuário\"\n}" } },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const json = pm.response.json();", "if (json.id) pm.environment.set('userId', json.id);" ] } }]
+        },
+        {
+          "name": "Users: Get",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/users/{{userId}}" }
+        },
+        {
+          "name": "Users: Update",
+          "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/users/{{userId}}", "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nome Atualizado\"\n}" } }
+        },
+        {
+          "name": "Users: Delete",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/users/{{userId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Events Management",
+      "item": [
+        { "name": "Events: Create (JWT)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Show de Fim de Ano\",\n  \"description\": \"Evento de encerramento com atrações musicais.\",\n  \"startDate\": \"2025-12-01T20:00:00.000Z\",\n  \"endDate\": \"2025-12-01T22:00:00.000Z\",\n  \"location\": \"Auditório Central\",\n  \"capacity\": 100\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "try { const ev = pm.response.json(); if (ev.id) pm.environment.set('eventId', ev.id); } catch(e){}" ] } }] },
+        { "name": "Events: Update (owner/admin)", "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events/{{eventId}}", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Show Atualizado\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento atualizado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Events: Update (não-dono: 403)", "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{otherAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events/{{eventId}}", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Tentativa não-dono\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Forbidden para não-dono (403)', function(){ pm.expect(pm.response.code).to.eql(403); });" ] } }] },
+        { "name": "Events: Update (sem auth) -> 401", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events/{{eventId}}", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Tentativa sem auth\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Requer autenticação (401)', function(){ pm.expect(pm.response.code).to.eql(401); });" ] } }] },
+        { "name": "Events: Publish", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventId}}/publish" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento publicado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Events: Cancel", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventId}}/cancel" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento cancelado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Events: Publish (não-dono: 403)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{otherAccessToken}}" }], "url": "{{baseUrl}}/events/{{eventId}}/publish" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Forbidden publish não-dono (403)', function(){ pm.expect(pm.response.code).to.eql(403); });" ] } }] },
+        { "name": "Events: Cancel (não-dono: 403)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{otherAccessToken}}" }], "url": "{{baseUrl}}/events/{{eventId}}/cancel" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Forbidden cancel não-dono (403)', function(){ pm.expect(pm.response.code).to.eql(403); });" ] } }] },
+        { "name": "Events: Publish (sem auth) -> 401", "request": { "method": "POST", "url": "{{baseUrl}}/events/{{eventId}}/publish" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Requer autenticação (401) publish', function(){ pm.expect(pm.response.code).to.eql(401); });" ] } }] },
+        { "name": "Events: Cancel (sem auth) -> 401", "request": { "method": "POST", "url": "{{baseUrl}}/events/{{eventId}}/cancel" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Requer autenticação (401) cancel', function(){ pm.expect(pm.response.code).to.eql(401); });" ] } }] },
+        { "name": "Events: List (PUBLISHED)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events?status=PUBLISHED" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Lista de eventos (200)', function(){ pm.expect(pm.response.code).to.eql(200); });", "try { const list = pm.response.json(); if (Array.isArray(list) && list.length) pm.environment.set('eventId', list[0].id); } catch(e){}" ] } }] },
+        { "name": "TicketTypes: List (eventId)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventId}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Lista de tipos de ingresso (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Pedidos do usuário", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": "{{baseUrl}}/orders/me" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Lista de pedidos retornada (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] }
+      ]
+    },
+    
+    {
+      "name": "Local JWT (bearer) - Compra e Pagamento",
+      "item": [
+        { "name": "Dev Admin Token", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/dev/admin-token", "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"name\": \"Admin\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "if (js.token) pm.environment.set('accessToken', js.token);", "if (js.user && js.user.id) pm.environment.set('userId', js.user.id);" ] } }] },
+        { "name": "Events: Create (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Evento Pago\",\n  \"description\": \"Evento com ticket pago.\",\n  \"startDate\": \"2025-12-10T20:00:00.000Z\",\n  \"endDate\": \"2025-12-10T22:00:00.000Z\",\n  \"location\": \"Auditório A\",\n  \"capacity\": 10\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento pago criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "try { const ev = pm.response.json(); if (ev.id) pm.environment.set('eventIdPaid', ev.id); } catch(e){}" ] } }] },
+        { "name": "TicketTypes: Create (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types", "body": { "mode": "raw", "raw": "{\n  \"name\": \"Inteira\",\n  \"price\": 50,\n  \"quantity\": 10\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('TicketType pago criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "try { const tt = pm.response.json(); if (tt.id) pm.environment.set('ticketTypeIdPaid', tt.id); } catch(e){}" ] } }] },
+        { "name": "Events: Publish (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/publish" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento pago publicado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Dev Participant Token (Comprador)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/dev/participant-token", "body": { "mode": "raw", "raw": "{\n  \"email\": \"buyer@example.com\",\n  \"name\": \"Buyer\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "if (js.token) pm.environment.set('buyerAccessToken', js.token);", "if (js.user && js.user.id) pm.environment.set('buyerUserId', js.user.id);" ] } }] },
+        { "name": "Snapshot antes do bulk (Pago) - evento", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdPaid}}" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.environment.set('eventCapacityBeforePaidBulk', ev.capacity);"
+        ] } }] },
+        { "name": "Snapshot TicketType antes do bulk (Pago)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdPaid'));",
+          "pm.test('TicketType pago encontrado', function(){ pm.expect(!!tt).to.eql(true); });",
+          "pm.environment.set('ticketTypeQtyBeforePaidBulk', tt.quantity);"
+        ] } }] },
+        { "name": "Orders: Bulk (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders/bulk", "body": { "mode": "raw", "raw": "{\n  \"eventId\": \"{{eventIdPaid}}\",\n  \"items\": [ { \"ticketTypeId\": \"{{ticketTypeIdPaid}}\", \"quantity\": 3 } ]\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pedido pago bulk criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });",
+          "const r = pm.response.json();",
+          "pm.environment.set('orderIdPaidBulk', r.order.id);",
+          "pm.environment.set('orderPricePaidBulk', r.price);",
+          "pm.test('Status inicial pendente', function(){ pm.expect(r.order.status).to.eql('PENDING'); pm.expect(Array.isArray(r.tickets)).to.eql(true); pm.expect(r.price).to.be.above(0); });",
+          "pm.test('Campos agregados no Order (qty/price)', function(){ pm.expect(r.order.ticketQuantity).to.eql(3); pm.expect(r.order.totalPrice).to.eql(Number(pm.environment.get('orderPricePaidBulk'))); });"
+        ] } }] },
+        { "name": "Verificar reserva bulk (Pago) - estoque", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdPaid}}" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade decrementada pelo bulk', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityBeforePaidBulk')) - 3); });"
+        ] } }] },
+        { "name": "Verificar TicketType após bulk (Pago)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdPaid'));",
+          "pm.test('Quantidade decrementada pelo bulk', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyBeforePaidBulk')) - 3); });"
+        ] } }] },
+        { "name": "Orders: Create (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders", "body": { "mode": "raw", "raw": "{\n  \"eventId\": \"{{eventIdPaid}}\",\n  \"ticketTypeId\": \"{{ticketTypeIdPaid}}\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pedido pago criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });",
+          "const r = pm.response.json();",
+          "pm.environment.set('orderIdPaid', r.order.id);",
+        "pm.environment.set('orderPricePaid', r.price);",
+        "pm.test('Status inicial pendente', function(){ pm.expect(r.order.status).to.eql('PENDING'); pm.expect(r.ticket.status).to.eql('WAITING'); pm.expect(r.price).to.be.above(0); });"
+        ] } }] },
+        { "name": "Snapshot estoque (Pago) - antes da reserva", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdPaid}}" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.environment.set('eventCapacityInitPaid', ev.capacity);"
+        ] } }] },
+        { "name": "Snapshot TicketType (Pago) - antes da reserva", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdPaid'));",
+          "pm.test('TicketType pago encontrado', function(){ pm.expect(!!tt).to.eql(true); });",
+          "pm.environment.set('ticketTypeQtyInitPaid', tt.quantity);"
+        ] } }] },
+        { "name": "Verificar reserva (estoque decrementado)", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdPaid}}" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade decrementada', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityInitPaid')) - 1); });"
+        ] } }] },
+        { "name": "Verificar TicketType reservado", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdPaid'));",
+          "pm.test('Quantidade decrementada', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyInitPaid')) - 1); });"
+        ] } }] },
+        { "name": "Orders: Cancel (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/{{orderIdPaid}}/cancel" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Cancelamento concluído (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const r = pm.response.json();",
+          "pm.test('Status ticket e pedido cancelados', function(){ pm.expect(r.ticket.status).to.eql('CANCELED'); pm.expect(r.order.status).to.eql('CANCELED'); });"
+        ] } }] },
+        { "name": "Orders: Me (após cancelamento - Pago)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/me" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista de pedidos (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const ord = (list||[]).find(o => o.id === pm.environment.get('orderIdPaid'));",
+          "pm.test('Pedido encontrado', function(){ pm.expect(!!ord).to.eql(true); });",
+          "pm.test('Pedido cancelado', function(){ pm.expect(ord.status).to.eql('CANCELED'); });",
+          "const t = (ord && ord.tickets && ord.tickets[0]) || {};",
+          "pm.test('Ticket cancelado sem pagamento', function(){ pm.expect(t.status).to.eql('CANCELED'); pm.expect(!!t.payment).to.eql(false); });"
+        ] } }] },
+        { "name": "Verificar cancelamento (estoque retornado)", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdPaid}}" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade restaurada', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityInitPaid'))); });"
+        ] } }] },
+        { "name": "Verificar TicketType após cancelamento", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdPaid'));",
+          "pm.test('Quantidade restaurada', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyInitPaid'))); });"
+        ] } }] },
+        { "name": "Orders: Revert Cancel (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/{{orderIdPaid}}/revert-cancel" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Reversão concluída (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const r = pm.response.json();",
+          "pm.test('Status ticket e pedido restaurados', function(){ pm.expect(r.ticket.status).to.eql('WAITING'); pm.expect(r.order.status).to.eql('PENDING'); });"
+        ] } }] },
+        { "name": "Orders: Me (após reversão - Pago)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/me" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista de pedidos (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const ord = (list||[]).find(o => o.id === pm.environment.get('orderIdPaid'));",
+          "pm.test('Pedido encontrado', function(){ pm.expect(!!ord).to.eql(true); });",
+          "pm.test('Pedido pendente após reversão', function(){ pm.expect(ord.status).to.eql('PENDING'); });",
+          "const t = (ord && ord.tickets && ord.tickets[0]) || {};",
+          "pm.test('Ticket aguardando sem pagamento', function(){ pm.expect(t.status).to.eql('WAITING'); pm.expect(!!t.payment).to.eql(false); });"
+        ] } }] },
+        { "name": "Verificar reversão (estoque consumido novamente)", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdPaid}}" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade novamente decrementada', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityInitPaid')) - 1); });"
+        ] } }] },
+        { "name": "Verificar TicketType após reversão", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdPaid}}/ticket-types" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdPaid'));",
+          "pm.test('Quantidade novamente decrementada', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyInitPaid')) - 1); });"
+        ] } }] },
+        { "name": "Orders: Pay (Pago)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders/{{orderIdPaid}}/pay", "body": { "mode": "raw", "raw": "{\n  \"method\": \"CREDIT_CARD\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pagamento concluído (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const r = pm.response.json();",
+          "pm.test('Status atualizado para pago/ativo', function(){ pm.expect(r.order.status).to.eql('PAID'); pm.expect(r.ticket.status).to.eql('ACTIVE'); });",
+          "pm.test('Pagamento registrado', function(){ pm.expect(r.payment.status).to.eql('COMPLETED'); pm.expect(r.payment.amount).to.eql(Number(pm.environment.get('orderPricePaid'))); });"
+        ] } }] },
+        { "name": "Orders: Me (verificar Ticket - Pago)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/me" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista de pedidos (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const ord = (list||[]).find(o => o.id === pm.environment.get('orderIdPaid'));",
+          "pm.test('Pedido encontrado', function(){ pm.expect(!!ord).to.eql(true); });",
+          "const t = (ord && ord.tickets && ord.tickets[0]) || {};",
+          "pm.test('Ticket ativo e vinculado ao usuário', function(){ pm.expect(t.status).to.eql('ACTIVE'); pm.expect(t.userId).to.be.a('string').and.not.empty; });",
+          "pm.test('Relações populadas (event, ticketType, payment)', function(){ pm.expect(!!t.event).to.eql(true); pm.expect(!!t.ticketType).to.eql(true); pm.expect(!!t.payment).to.eql(true); });",
+          "pm.test('Campos agregados no Order (qty/price)', function(){ pm.expect(ord.ticketQuantity).to.eql(1); pm.expect(ord.totalPrice).to.be.above(0); });"
+        ] } }] },
+        { "name": "Events: Create (Gratuito)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events", "description": "Cria evento gratuito para fluxo bulk", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Evento Gratuito\",\n  \"description\": \"Evento com ticket gratuito.\",\n  \"startDate\": \"2025-12-11T20:00:00.000Z\",\n  \"endDate\": \"2025-12-11T22:00:00.000Z\",\n  \"location\": \"Auditório B\",\n  \"capacity\": 10\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento gratuito criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "try { const ev = pm.response.json(); if (ev.id) pm.environment.set('eventIdFree', ev.id); } catch(e){}" ] } }] },
+        { "name": "TicketTypes: Create (Gratuito)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/ticket-types", "description": "Cria ticket type gratuito", "body": { "mode": "raw", "raw": "{\n  \"name\": \"Gratuito\",\n  \"price\": 0,\n  \"quantity\": 10\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('TicketType gratuito criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "try { const tt = pm.response.json(); if (tt.id) pm.environment.set('ticketTypeIdFree', tt.id); } catch(e){}" ] } }] },
+        { "name": "Events: Publish (Gratuito)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/publish", "description": "Publica evento gratuito para permitir compras" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento gratuito publicado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Snapshot antes do bulk (Gratuito) - evento", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdFree}}", "description": "Snapshot de capacidade do evento antes do bulk gratuito" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.environment.set('eventCapacityBeforeFreeBulk', ev.capacity);"
+        ] } }] },
+        { "name": "Snapshot TicketType antes do bulk (Gratuito)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/ticket-types", "description": "Snapshot da quantidade do ticket type antes do bulk gratuito" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdFree'));",
+          "pm.test('TicketType gratuito encontrado', function(){ pm.expect(!!tt).to.eql(true); });",
+          "pm.environment.set('ticketTypeQtyBeforeFreeBulk', tt.quantity);"
+        ] } }] },
+        { "name": "Orders: Bulk (Gratuito)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders/bulk", "description": "Cria pedido em lote gratuito (2 ingressos)", "body": { "mode": "raw", "raw": "{\n  \"eventId\": \"{{eventIdFree}}\",\n  \"items\": [ { \"ticketTypeId\": \"{{ticketTypeIdFree}}\", \"quantity\": 2 } ]\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pedido gratuito bulk criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });",
+          "const r = pm.response.json();",
+          "pm.environment.set('orderIdFreeBulk', r.order.id);",
+          "pm.test('Status imediato pago/ativo', function(){ pm.expect(r.order.status).to.eql('PAID'); pm.expect(Array.isArray(r.tickets)).to.eql(true); pm.expect(r.price).to.eql(0); });",
+          "pm.test('Campos agregados no Order (qty/price)', function(){ pm.expect(r.order.ticketQuantity).to.eql(2); pm.expect(r.order.totalPrice).to.eql(0); });"
+        ] } }] },
+        { "name": "Verificar reserva bulk (Gratuito) - estoque", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdFree}}", "description": "Verifica decremento de capacidade após bulk gratuito" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade decrementada pelo bulk', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityBeforeFreeBulk')) - 2); });"
+        ] } }] },
+        { "name": "Verificar TicketType após bulk (Gratuito)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/ticket-types", "description": "Verifica decremento de quantidade do ticket type após bulk gratuito" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdFree'));",
+          "pm.test('Quantidade decrementada pelo bulk', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyBeforeFreeBulk')) - 2); });"
+        ] } }] },
+        { "name": "Snapshot após bulk (Gratuito) - evento", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdFree}}", "description": "Snapshot de capacidade do evento após o bulk gratuito" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.environment.set('eventCapacityAfterFreeBulk', ev.capacity);"
+        ] } }] },
+        { "name": "Snapshot TicketType após bulk (Gratuito)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/ticket-types", "description": "Snapshot da quantidade do ticket type após o bulk gratuito" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdFree'));",
+          "pm.test('TicketType gratuito encontrado', function(){ pm.expect(!!tt).to.eql(true); });",
+          "pm.environment.set('ticketTypeQtyAfterFreeBulk', tt.quantity);"
+        ] } }] },
+        { "name": "Orders: Cancel (Gratuito - Bulk) -> 400", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/{{orderIdFreeBulk}}/cancel", "description": "Tenta cancelar pedido gratuito bulk (esperado 400)" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Cancelamento inválido (400)', function(){ pm.expect(pm.response.code).to.eql(400); });",
+          "const js = pm.response.json();",
+          "pm.test('Mensagem order_not_pending', function(){ pm.expect(js.error).to.eql('order_not_pending'); });"
+        ] } }] },
+        { "name": "Verificar estoque após cancelamento inválido (Gratuito)", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdFree}}", "description": "Garante que capacidade não altera após cancel inválido" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade mantida após tentativa de cancelamento', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityAfterFreeBulk'))); });"
+        ] } }] },
+        { "name": "Verificar TicketType após cancelamento inválido (Gratuito)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/ticket-types", "description": "Garante que quantidade não altera após cancel inválido" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdFree'));",
+          "pm.test('Quantidade mantida após tentativa de cancelamento', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyAfterFreeBulk'))); });"
+        ] } }] },
+        { "name": "Orders: Revert Cancel (Gratuito - Bulk) -> 400", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/{{orderIdFreeBulk}}/revert-cancel", "description": "Tenta reverter cancelamento de pedido gratuito bulk (esperado 400)" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Reversão inválida (400)', function(){ pm.expect(pm.response.code).to.eql(400); });",
+          "const js = pm.response.json();",
+          "pm.test('Mensagem order_not_canceled', function(){ pm.expect(js.error).to.eql('order_not_canceled'); });"
+        ] } }] },
+        { "name": "Verificar estoque após reversão inválida (Gratuito)", "request": { "method": "GET", "url": "{{baseUrl}}/events/{{eventIdFree}}", "description": "Garante capacidade mantida após reversão inválida" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Evento obtido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const ev = pm.response.json();",
+          "pm.test('Capacidade mantida após reversão inválida', function(){ pm.expect(ev.capacity).to.eql(Number(pm.environment.get('eventCapacityAfterFreeBulk'))); });"
+        ] } }] },
+        { "name": "Verificar TicketType após reversão inválida (Gratuito)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/events/{{eventIdFree}}/ticket-types", "description": "Garante quantidade mantida após reversão inválida" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista ticketTypes (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const tt = (list||[]).find(x => x.id === pm.environment.get('ticketTypeIdFree'));",
+          "pm.test('Quantidade mantida após reversão inválida', function(){ pm.expect(tt.quantity).to.eql(Number(pm.environment.get('ticketTypeQtyAfterFreeBulk'))); });"
+        ] } }] },
+        { "name": "Orders: Create (Gratuito)", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders", "description": "Cria pedido unitário gratuito", "body": { "mode": "raw", "raw": "{\n  \"eventId\": \"{{eventIdFree}}\",\n  \"ticketTypeId\": \"{{ticketTypeIdFree}}\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pedido gratuito criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });",
+          "const r = pm.response.json();",
+          "pm.environment.set('orderIdFree', r.order.id);",
+          "pm.test('Status imediato pago/ativo', function(){ pm.expect(r.order.status).to.eql('PAID'); pm.expect(r.ticket.status).to.eql('ACTIVE'); pm.expect(r.price).to.eql(0); });"
+        ] } }] },
+        { "name": "Orders: Me (verificar Ticket - Gratuito)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }], "url": "{{baseUrl}}/orders/me", "description": "Lista pedidos do comprador (gratuito) e valida ticket ativo sem pagamento" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista de pedidos (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json();",
+          "const ord = (list||[]).find(o => o.id === pm.environment.get('orderIdFree'));",
+          "pm.test('Pedido encontrado', function(){ pm.expect(!!ord).to.eql(true); });",
+          "const t = (ord && ord.tickets && ord.tickets[0]) || {};",
+          "pm.test('Ticket ativo sem pagamento', function(){ pm.expect(t.status).to.eql('ACTIVE'); pm.expect(!!t.payment).to.eql(false); });",
+          "pm.test('Relações populadas (event, ticketType)', function(){ pm.expect(!!t.event).to.eql(true); pm.expect(!!t.ticketType).to.eql(true); });",
+          "pm.test('Campos agregados no Order (qty/price)', function(){ pm.expect(ord.ticketQuantity).to.eql(1); pm.expect(ord.totalPrice).to.eql(0); });"
+        ] } }] },
+        { "name": "Orders: Pay (Gratuito) -> 400", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{buyerAccessToken}}" }, { "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders/{{orderIdFree}}/pay", "description": "Testa que pagamento em pedido gratuito não é permitido", "body": { "mode": "raw", "raw": "{\n  \"method\": \"PIX\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pedido gratuito não aceita pay (400)', function(){ pm.expect(pm.response.code).to.eql(400); });",
+          "const js = pm.response.json();",
+          "pm.test('Mensagem order_not_pending', function(){ pm.expect(js.error).to.eql('order_not_pending'); });"
+        ] } }] }
+      ]
+    }
+    ,
+    {
+      "name": "Local Login (cookies)",
+      "item": [
+        { "name": "Local: Register (Organizer)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/local/register", "body": { "mode": "raw", "raw": "{\n  \"email\": \"local.user@example.com\",\n  \"name\": \"Local User\",\n  \"password\": \"Password123\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Registrado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });" ] } }] },
+        { "name": "Local: Login (cookies)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/local/login", "body": { "mode": "raw", "raw": "{\n  \"email\": \"local.user@example.com\",\n  \"password\": \"Password123\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Login (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "pm.test('Cookie access_token presente', function(){ pm.response.to.have.cookie('access_token'); });",
+          "pm.test('Cookie refresh_token presente', function(){ pm.response.to.have.cookie('refresh_token'); });"
+        ] } }] },
+        { "name": "Local: Events Create (cookie)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events", "body": { "mode": "raw", "raw": "{\n  \"title\": \"Evento Local Pago\",\n  \"description\": \"Criado via login local.\",\n  \"startDate\": \"2025-12-12T20:00:00.000Z\",\n  \"endDate\": \"2025-12-12T22:00:00.000Z\",\n  \"location\": \"Sala C\",\n  \"capacity\": 5\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Evento criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "const ev = pm.response.json(); pm.environment.set('localEventId', ev.id);" ] } }] },
+        { "name": "Local: TicketType Create (cookie)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/events/{{localEventId}}/ticket-types", "body": { "mode": "raw", "raw": "{\n  \"name\": \"Local Inteira\",\n  \"price\": 40,\n  \"quantity\": 2\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('TicketType criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });", "const tt = pm.response.json(); pm.environment.set('localTTId', tt.id);" ] } }] },
+        { "name": "Local: Publish (cookie)", "request": { "method": "POST", "url": "{{baseUrl}}/events/{{localEventId}}/publish" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Publicado (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
+        { "name": "Local: Orders Create (cookie)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/orders", "body": { "mode": "raw", "raw": "{\n  \"eventId\": \"{{localEventId}}\",\n  \"ticketTypeId\": \"{{localTTId}}\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Pedido criado (201)', function(){ pm.expect(pm.response.code).to.eql(201); });",
+          "const r = pm.response.json(); pm.environment.set('localOrderId', r.order.id);",
+          "pm.test('Status pendente', function(){ pm.expect(r.order.status).to.eql('PENDING'); pm.expect(r.ticket.status).to.eql('WAITING'); });"
+        ] } }] },
+        { "name": "Local: Orders Me (cookie)", "request": { "method": "GET", "url": "{{baseUrl}}/orders/me" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Lista de pedidos (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const list = pm.response.json(); const ord = (list||[]).find(o => o.id === pm.environment.get('localOrderId'));",
+          "pm.test('Pedido encontrado', function(){ pm.expect(!!ord).to.eql(true); });",
+          "const t = (ord && ord.tickets && ord.tickets[0]) || {}; pm.test('Ticket aguardando', function(){ pm.expect(t.status).to.eql('WAITING'); });"
+        ] } }] }
+      ]
+    }
+    ,
+    {
+      "name": "Token Rotation (cookies)",
+      "item": [
+        { "name": "Rotation: Local Login capture", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/local/login", "body": { "mode": "raw", "raw": "{\n  \"email\": \"local.user@example.com\",\n  \"password\": \"Password123\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Login (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+          "const js = pm.response.json();",
+          "pm.environment.set('localRefreshToken', js.refreshToken || '');",
+          "pm.test('Tem refreshToken no corpo', function(){ pm.expect(!!js.refreshToken).to.eql(true); });",
+          "pm.test('Cookie access_token presente', function(){ pm.response.to.have.cookie('access_token'); });",
+          "pm.test('Cookie refresh_token presente', function(){ pm.response.to.have.cookie('refresh_token'); });"
+        ] } }] },
+        { "name": "Rotation: Clear access cookie only", "request": { "method": "GET", "url": "{{baseUrl}}/health" }, "event": [
+          { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+            "pm.cookies.jar.set(pm.environment.get('baseUrl'), 'access_token', '', function(err){ /* noop */ })"
+          ] } },
+          { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Health reachable', function(){ pm.expect([200,204].includes(pm.response.code)).to.eql(true); });"
+          ] } }
+        ] },
+        { "name": "Rotation: Set only refresh and call /orders/me", "request": { "method": "GET", "url": "{{baseUrl}}/orders/me" }, "event": [
+          { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+            "pm.cookies.jar.set(pm.environment.get('baseUrl'), 'refresh_token', pm.environment.get('localRefreshToken'), function(err){ /* noop */ })"
+          ] } },
+          { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Rotação realizada (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+            "pm.test('Server setou novos cookies', function(){ pm.response.to.have.cookie('access_token'); pm.response.to.have.cookie('refresh_token'); });",
+            "const list = pm.response.json();",
+            "pm.test('Lista é um array', function(){ pm.expect(Array.isArray(list)).to.eql(true); });"
+          ] } }
+        ] }
+        ,
+        { "name": "Rotation: Logout (revoke session)", "request": { "method": "POST", "url": "{{baseUrl}}/auth/logout" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('Logout (204)', function(){ pm.expect(pm.response.code).to.eql(204); });"
+        ] } }] },
+        { "name": "Rotation: Try with revoked refresh -> 401", "request": { "method": "GET", "url": "{{baseUrl}}/orders/me" }, "event": [
+          { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+            "pm.cookies.jar.set(pm.environment.get('baseUrl'), 'access_token', '', function(err){ /* noop */ })",
+            "pm.cookies.jar.set(pm.environment.get('baseUrl'), 'refresh_token', pm.environment.get('localRefreshToken'), function(err){ /* noop */ })"
+          ] } },
+          { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Sessão revogada (401)', function(){ pm.expect(pm.response.code).to.eql(401); });",
+            "const js = pm.response.json();",
+            "pm.test('Mensagem session_invalid', function(){ pm.expect(js.error).to.eql('session_invalid'); });"
+          ] } }
+        ] }
+      ]
+    }
+  ]
+}

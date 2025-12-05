@@ -1,0 +1,41 @@
+{
+  "name": "7events-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:cleanup": "ts-node ./scripts/cleanup.ts",
+    "db:migrate:auth0": "ts-node ./scripts/migrate_auth0_to_userGoogle.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:pull": "prisma db pull",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:reset": "prisma migrate reset --force",
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:baseline": "node scripts/baseline.js"
+  },
+  "dependencies": {
+    "@prisma/adapter-mariadb": "^7.0.0",
+    "@prisma/client": "^7.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "google-auth-library": "^9.15.1",
+    "jsonwebtoken": "^9.0.2",
+    "prisma": "^7.0.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^22.19.1",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  }
+}

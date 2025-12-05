@@ -1,0 +1,160 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  passwordHash String?
+  role      Role     @default(PARTICIPANT)
+  orders    Order[]
+  payments  Payment[]
+  events    Event[]
+  tickets   Ticket[]
+  loginSessions LoginSession[]
+  google    UserGoogle?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  ORGANIZER
+  PARTICIPANT
+}
+
+model Event {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  startDate   DateTime
+  endDate     DateTime
+  location    String
+  capacity    Int
+  status      Status       @default(DRAFT)
+  imageUrl    String?
+  ticketTypes TicketType[]
+  tickets     Ticket[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Status {
+  DRAFT
+  PUBLISHED
+  CANCELED
+  FINALIZED
+}
+
+model TicketType {
+  id       String   @id @default(uuid())
+  eventId  String
+  name     String
+  price    Float
+  quantity Int
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets  Ticket[]
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  userId    String
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  ticketQuantity Int     @default(0)
+  totalPrice    Float    @default(0)
+  code       String?     @unique
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tickets   Ticket[]
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELED
+  REFUNDED
+}
+
+model Ticket {
+  id           String       @id @default(uuid())
+  orderId      String?
+  ticketTypeId String
+  eventId      String
+  userId       String?
+  status       TicketStatus @default(WAITING)
+  order        Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  payment      Payment?
+}
+
+enum TicketStatus {
+  WAITING
+  ACTIVE
+  CANCELED
+  REFUNDED
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  ticketId  String        @unique
+  userId    String
+  amount    Float
+  status    PaymentStatus @default(PENDING)
+  method    PaymentMethod
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoginSession {
+  id         String   @id @default(uuid())
+  userId     String
+  sessionId  String   @unique
+  ip         String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  PAYPAL
+  PIX
+  BOLETO
+}
+
+model UserGoogle {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  sub       String   @unique
+  email     String
+  name      String
+  picture   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// UserLocal removed; local credentials stored on User
