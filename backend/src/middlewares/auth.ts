@@ -85,3 +85,29 @@ export function signJwt(payload: object, expiresInDays = env.ACCESS_TOKEN_DAYS) 
   const options: SignOptions = { expiresIn: expiresInDays * 24 * 60 * 60 }
   return jwt.sign(payload as any, secret, options)
 }
+
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  try {
+    const cookieHeader = req.headers['cookie']
+    const cookies = Object.fromEntries(
+      (cookieHeader || '')
+        .split(';')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.includes('='))
+        .map((p: string) => {
+          const i = p.indexOf('=')
+          return [p.substring(0, i), decodeURIComponent(p.substring(i + 1))]
+        })
+    ) as Record<string, string>
+    const auth = req.headers['authorization']
+    const bearer = auth?.startsWith('Bearer ') ? auth.substring(7) : undefined
+    const access = bearer || cookies['access_token']
+    if (access) {
+      try {
+        const payload = jwt.verify(access, env.JWT_SECRET) as any
+        ;(req as any).user = payload
+      } catch {}
+    }
+  } catch {}
+  next()
+}

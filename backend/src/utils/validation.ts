@@ -10,7 +10,15 @@ export const createEventSchema = z.object({
   imageUrl: z.string().trim().refine((v) => { try { new URL(v); return true } catch { return false } }, { message: 'invalid_url' }).optional()
 })
 
-export const updateEventSchema = createEventSchema.partial()
+export const updateEventSchema = z.object({
+  title: z.string().min(3).optional(),
+  description: z.string().min(10).optional(),
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
+  location: z.string().min(3).optional()
+}).refine((v) => v.title !== undefined || v.description !== undefined || v.startDate !== undefined || v.endDate !== undefined || v.location !== undefined, {
+  message: 'no_fields'
+})
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export const createOrderSchema = z.object({

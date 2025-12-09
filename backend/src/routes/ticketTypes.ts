@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../prisma'
-import { requireAuth } from '../middlewares/auth'
+import { requireAuth, optionalAuth } from '../middlewares/auth'
 import { isAdmin, isOwner } from '../utils/authz'
 import { createTicketTypeSchema, updateTicketTypeSchema } from '../utils/validation'
 
 const router = Router({ mergeParams: true })
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   const { eventId } = req.params as { eventId: string }
   const event = await prisma.event.findUnique({ where: { id: eventId } })
   if (!event) return res.status(404).json({ error: 'event_not_found' })
