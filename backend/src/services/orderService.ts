@@ -2,6 +2,25 @@ import { prisma } from '../prisma'
 import { PaymentMethod } from '@prisma/client'
 import { audit } from '../utils/audit'
 
+function ensureEvent(event: any, qty: number) {
+  if (!event) throw new Error('event_not_found')
+  if (event.status !== 'PUBLISHED') throw new Error('event_not_published')
+  if (new Date(event.endDate).getTime() <= Date.now()) throw new Error('event_finalized')
+  if (event.capacity < qty) throw new Error('insufficient_capacity')
+}
+async function nextCode(tx: any, startDate: any, title?: string | null) {
+  const year = new Date(startDate).getFullYear()
+  const prefix = (String(title || '').match(/[A-Za-z0-9]/g)?.join('') || '').toUpperCase().slice(0, 3) || 'EVT'
+  const base = `${prefix}-${year}`
+  const last = await tx.order.findMany({ where: { code: { startsWith: base + '-' } }, select: { code: true }, orderBy: { createdAt: 'desc' }, take: 1 })
+  let seq = 1
+  if (last.length > 0) {
+    const m = /-(\d+)$/.exec(last[0].code || '')
+    if (m) seq = Number(m[1]) + 1
+  }
+  return `${base}-${String(seq).padStart(5, '0')}`
+}
+
 export const orderService = {
   async listAllOrders() {
     return prisma.order.findMany({
@@ -37,7 +56,7 @@ export const orderService = {
       await tx.ticketType.update({ where: { id: ticketTypeId }, data: { quantity: { decrement: 1 } } })
 
       const year = new Date(event.startDate).getFullYear()
-      const prefix = String(event.title || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3) || 'EVT'
+      const prefix = (String(event.title || '').match(/[A-Za-z0-9]/g)?.join('') || '').toUpperCase().slice(0, 3) || 'EVT'
       const base = `${prefix}-${year}`
       const last = await tx.order.findMany({ where: { code: { startsWith: base + '-' } }, select: { code: true }, orderBy: { createdAt: 'desc' }, take: 1 })
       let seq = 1
@@ -47,7 +66,7 @@ export const orderService = {
       }
       const code = `${base}-${String(seq).padStart(5, '0')}`
 
-      const order = await tx.order.create({ data: { userId, ticketQuantity: 1, totalPrice: tt.price, code } })
+      const order = await tx.order.create({ data: { userId, eventId, ticketQuantity: 1, totalPrice: tt.price, code } })
       const ticket = await tx.ticket.create({
         data: {
           orderId: order.id,
@@ -73,56 +92,48 @@ export const orderService = {
   },
 
   async createOrderBulk(userId: string, eventId: string, items: Array<{ ticketTypeId: string; quantity: number }>) {
-    return prisma.$transaction(async (tx) => {
-      const event = await tx.event.findUnique({ where: { id: eventId } })
-      if (!event) throw new Error('event_not_found')
-      if (event.status !== 'PUBLISHED') throw new Error('event_not_published')
-      if (new Date(event.endDate).getTime() <= Date.now()) throw new Error('event_finalized')
-
-      const totalQty = items.reduce((acc, it) => acc + it.quantity, 0)
-      if (event.capacity < totalQty) throw new Error('insufficient_capacity')
-
-      const tts = await tx.ticketType.findMany({ where: { id: { in: items.map((i) => i.ticketTypeId) } } })
-      const ttMap = new Map(tts.map((t) => [t.id, t]))
-      for (const it of items) {
-        const tt = ttMap.get(it.ticketTypeId)
-        if (!tt || tt.eventId !== eventId) throw new Error('ticket_type_not_found')
+    function totalQuantity(arr: Array<{ ticketTypeId: string; quantity: number }>) {
+      return arr.reduce((acc, it) => acc + it.quantity, 0)
+    }
+    function validateItems(map: Map<string, any>, evId: string, arr: Array<{ ticketTypeId: string; quantity: number }>) {
+      for (const it of arr) {
+        const tt = map.get(it.ticketTypeId)
+        if (tt?.eventId !== evId) throw new Error('ticket_type_not_found')
         if (tt.quantity < it.quantity) throw new Error('ticket_type_insufficient_quantity')
       }
-
-      await tx.event.update({ where: { id: eventId }, data: { capacity: { decrement: totalQty } } })
+    }
+    function priceSum(map: Map<string, any>, arr: Array<{ ticketTypeId: string; quantity: number }>) {
+      return arr.reduce((sum, it) => {
+        const tt = map.get(it.ticketTypeId)!
+        return sum + Number(tt.price) * it.quantity
+      }, 0)
+    }
+    async function createTickets(tx: any, orderId: string, evId: string, arr: Array<{ ticketTypeId: string; quantity: number }>) {
+      const list: any[] = []
+      for (const it of arr) {
+        for (let i = 0; i < it.quantity; i++) {
+          const t = await tx.ticket.create({ data: { orderId, ticketTypeId: it.ticketTypeId, eventId: evId, status: 'WAITING' } })
+          list.push(t)
+          audit('order_reserved', { orderId, ticketId: t.id, eventId: evId, ticketTypeId: it.ticketTypeId })
+        }
+      }
+      return list
+    }
+    return prisma.$transaction(async (tx) => {
+      const event = await tx.event.findUnique({ where: { id: eventId } })
+      const qty = totalQuantity(items)
+      ensureEvent(event, qty)
+      const tts = await tx.ticketType.findMany({ where: { id: { in: items.map((i) => i.ticketTypeId) } } })
+      const ttMap = new Map(tts.map((t) => [t.id, t]))
+      validateItems(ttMap, eventId, items)
+      await tx.event.update({ where: { id: eventId }, data: { capacity: { decrement: qty } } })
       for (const it of items) {
         await tx.ticketType.update({ where: { id: it.ticketTypeId }, data: { quantity: { decrement: it.quantity } } })
       }
-
-      const totalPrice = items.reduce((sum, it) => {
-        const tt = ttMap.get(it.ticketTypeId)!
-        return sum + Number(tt.price) * it.quantity
-      }, 0)
-
-      const year = new Date(event.startDate).getFullYear()
-      const prefix = String(event.title || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3) || 'EVT'
-      const base = `${prefix}-${year}`
-      const last = await tx.order.findMany({ where: { code: { startsWith: base + '-' } }, select: { code: true }, orderBy: { createdAt: 'desc' }, take: 1 })
-      let seq = 1
-      if (last.length > 0) {
-        const m = /-(\d+)$/.exec(last[0].code || '')
-        if (m) seq = Number(m[1]) + 1
-      }
-      const code = `${base}-${String(seq).padStart(5, '0')}`
-
-      const order = await tx.order.create({ data: { userId, ticketQuantity: totalQty, totalPrice, code } })
-      const tickets: any[] = []
-      for (const it of items) {
-        for (let i = 0; i < it.quantity; i++) {
-          const t = await tx.ticket.create({
-            data: { orderId: order.id, ticketTypeId: it.ticketTypeId, eventId, status: 'WAITING' }
-          })
-          tickets.push(t)
-          audit('order_reserved', { orderId: order.id, ticketId: t.id, eventId, ticketTypeId: it.ticketTypeId })
-        }
-      }
-
+      const totalPrice = priceSum(ttMap, items)
+      const code = await nextCode(tx, event!.startDate, event!.title)
+      const order = await tx.order.create({ data: { userId, eventId, ticketQuantity: qty, totalPrice, code } })
+      const tickets = await createTickets(tx, order.id, eventId, items)
       if (totalPrice === 0) {
         const updatedTickets: any[] = []
         for (const t of tickets) {
@@ -133,7 +144,6 @@ export const orderService = {
         audit('order_paid_free_bulk', { orderId: order.id, tickets: updatedTickets.map((x) => x.id) })
         return { order: updatedOrder, tickets: updatedTickets, price: totalPrice }
       }
-
       return { order, tickets, price: totalPrice }
     }, { isolationLevel: 'Serializable' })
   },
@@ -154,7 +164,7 @@ export const orderService = {
         const tt = await tx.ticketType.findUnique({ where: { id: t.ticketTypeId } })
         if (!tt) throw new Error('ticket_type_not_found')
         const payment = await tx.payment.create({
-          data: { ticketId: t.id, userId, amount: tt.price, status: 'COMPLETED', method }
+          data: { ticketId: t.id, userId, eventId: t.eventId, amount: tt.price, status: 'COMPLETED', method }
         })
         payments.push(payment)
         await tx.ticket.update({ where: { id: t.id }, data: { status: 'ACTIVE', userId } })

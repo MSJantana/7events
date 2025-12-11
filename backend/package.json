@@ -8,14 +8,14 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "db:cleanup": "ts-node ./scripts/cleanup.ts",
-    "db:migrate:auth0": "ts-node ./scripts/migrate_auth0_to_userGoogle.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:pull": "prisma db pull",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:reset": "prisma migrate reset --force",
     "prisma:migrate:status": "prisma migrate status",
-    "prisma:baseline": "node scripts/baseline.js"
+    "prisma:baseline": "node scripts/baseline.js",
+    "db:reset-clean-baseline": "npm run prisma:migrate:reset && npm run db:cleanup && npm run prisma:baseline"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.0.0",

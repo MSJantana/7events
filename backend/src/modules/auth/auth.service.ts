@@ -47,7 +47,7 @@ export async function handleGoogleCallback(code: string, ip?: string) {
   const user = await prisma.user.upsert({
     where: { email: payload.email },
     update: { name: payload.name },
-    create: { email: payload.email, name: payload.name, role: Role.PARTICIPANT }
+    create: { email: payload.email, name: payload.name, role: Role.ORGANIZER }
   })
 
   if (payload.sub) {

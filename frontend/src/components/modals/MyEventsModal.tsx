@@ -1,9 +1,12 @@
 import styles from './modal.module.css'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import type { EventSummary } from '../../types'
 import { getEventsByStatus, getTicketTypes, publishEvent, cancelEvent, getEventsByStatusPaginated } from '../../services/events'
 import { getAllOrders } from '../../services/orders'
 import { useToast } from '../../hooks/useToast'
+import { useAuth } from '../../hooks/useAuth'
+import { renderNotice } from '../common/Notice'
+import type { NoticeStyles } from '../common/Notice'
 
 async function getMergedAllEvents() {
   const pub = await getEventsByStatus('PUBLISHED')
@@ -70,8 +73,11 @@ function matchesFilter(status: EventSummary['status'], f: 'ALL' | 'PUBLISHED' | 
   return f === 'ALL' ? true : status === f
 }
 
+const notice = (kind: 'ok' | 'err' | 'info', text: string, style?: Record<string, unknown>) => renderNotice(styles as unknown as NoticeStyles, kind, text, style)
+
 export default function MyEventsModal({ open, onClose, onEdit, onPublished }: Readonly<{ open: boolean; onClose: () => void; onEdit: (ev: EventSummary) => void; onPublished?: () => void }>) {
   const { show, hide } = useToast()
+  const { user } = useAuth()
   const [events, setEvents] = useState<EventSummary[]>([])
   const filter: 'ALL' | 'PUBLISHED' | 'DRAFT' | 'CANCELED' | 'FINALIZED' = 'ALL'
   const query = ''
@@ -114,21 +120,84 @@ export default function MyEventsModal({ open, onClose, onEdit, onPublished }: Re
     return { background:'#f3f4f6', borderColor:'var(--border)', color:'var(--gray)' }
   }
 
-  function statusIcon(status: EventSummary['status']) {
-    if (status === 'PUBLISHED') return '✅'
-    if (status === 'DRAFT') return '📝'
-    if (status === 'CANCELED') return '⛔'
-    return '🏁'
-  }
+function statusIcon(status: EventSummary['status']) {
+  if (status === 'PUBLISHED') return '✅'
+  if (status === 'DRAFT') return '📝'
+  if (status === 'CANCELED') return '⛔'
+  return '🏁'
+}
 
-  function computeActions(ev: EventSummary, hasPurch: boolean) {
+function computeActions(ev: EventSummary, hasPurch: boolean) {
     const finalOrCanceled = ev.status === 'FINALIZED' || ev.status === 'CANCELED'
-    const publishDisabled = hasPurch || ev.status === 'PUBLISHED' || finalOrCanceled
-    const cancelDisabled = finalOrCanceled
-    const editDisabled = hasPurch || finalOrCanceled
-    const disabledTitle = finalOrCanceled ? 'Ação indisponível para eventos finalizados/cancelados' : undefined
+    const evOwnerId = (ev as Record<string, unknown>)['userId'] as string | undefined
+    const isOwner = !!user && (user.role === 'ADMIN' || String(evOwnerId || '') === String(user.id))
+    const publishDisabled = hasPurch || ev.status === 'PUBLISHED' || finalOrCanceled || !isOwner
+    const cancelDisabled = finalOrCanceled || !isOwner
+    const editDisabled = hasPurch || finalOrCanceled || !isOwner
+    const disabledTitle = !isOwner
+      ? 'Ação permitida apenas ao criador do evento'
+      : (finalOrCanceled ? 'Ação indisponível para eventos finalizados/cancelados' : undefined)
     return { publishDisabled, cancelDisabled, editDisabled, disabledTitle }
   }
+
+function renderEventItem(
+  ev: EventSummary,
+  a: { publishDisabled: boolean; cancelDisabled: boolean; editDisabled: boolean; disabledTitle?: string },
+  stats: Record<string, { available: number; waiting: number; active: number }>,
+  onPublish: (id: string) => void,
+  onCancel: (ev: EventSummary) => void,
+  onEdit: (ev: EventSummary) => void
+  ) {
+    return (
+      <div key={ev.id} className={styles.item}>
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ fontWeight:700 }}>{ev.title}</div>
+        <span className={styles.pill} style={statusPillStyle(ev.status)}>
+          <span aria-hidden>{statusIcon(ev.status)}</span>
+          <span>{ev.status}</span>
+        </span>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:12, color: '#6b7280', border:'1px solid #e5e7eb', borderRadius:999, padding:'2px 8px' }}>Disponíveis: {stats[ev.id]?.available ?? '—'}</span>
+          <span style={{ fontSize:12, color: '#6b7280', border:'1px solid #e5e7eb', borderRadius:999, padding:'2px 8px' }}>Reservados: {stats[ev.id]?.waiting ?? '—'}</span>
+          <span style={{ fontSize:12, color: '#6b7280', border:'1px solid #e5e7eb', borderRadius:999, padding:'2px 8px' }}>Ativos: {stats[ev.id]?.active ?? '—'}</span>
+        </div>
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <button
+          disabled={a.publishDisabled}
+          title={a.disabledTitle}
+          className={`${styles.btn} ${styles.ghost}`}
+          onClick={() => onPublish(ev.id)}
+        >Publicar</button>
+        <button
+          disabled={a.cancelDisabled}
+          title={a.disabledTitle}
+          className={`${styles.btn} ${styles.danger}`}
+          onClick={() => onCancel(ev)}
+        >Cancelar</button>
+        <button
+          disabled={a.editDisabled}
+          title={a.disabledTitle}
+          className={`${styles.btn} ${styles.ghost}`}
+          onClick={() => onEdit(ev)}
+        >Editar</button>
+      </div>
+    </div>
+  )
+}
+
+function renderPaginationFooter(page: number, totalPages: number, onClose: () => void, setPage: Dispatch<SetStateAction<number>>) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      <div style={{ fontSize:12, color:'#6b7280' }}>Página {page} de {totalPages}</div>
+      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+        <button className={`${styles.btn} ${styles.ghost}`} onClick={onClose}>Fechar</button>
+        <button className={`${styles.btn} ${styles.ghost}`} disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Anterior</button>
+        <button className={`${styles.btn} ${styles.ghost}`} disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>Próxima</button>
+      </div>
+    </div>
+  )
+}
 
   async function onPublish(id: string) {
     try { await publishEvent(id); setEvents(list => list.map(e => e.id===id ? { ...e, status: 'PUBLISHED' } : e)); show({ text: 'Publicado', kind: 'ok' }); onPublished?.() }
@@ -170,56 +239,9 @@ export default function MyEventsModal({ open, onClose, onEdit, onPublished }: Re
         <div className={styles.section}>
           
           {filteredSorted.length === 0 ? (
-            <div className={`${styles.notice} ${styles.noticeInfo}`}>Nenhum evento encontrado</div>
-          ) : pageItems.map(ev => {
-            const a = computeActions(ev, hasPurchases(ev.id))
-            return (
-              <div key={ev.id} className={styles.item}>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ fontWeight:700 }}>{ev.title}</div>
-                  <span className={styles.pill} style={statusPillStyle(ev.status)}>
-                    <span aria-hidden>{statusIcon(ev.status)}</span>
-                    <span>{ev.status}</span>
-                  </span>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:12, color: '#6b7280', border:'1px solid #e5e7eb', borderRadius:999, padding:'2px 8px' }}>Disponíveis: {stats[ev.id]?.available ?? '—'}</span>
-                    <span style={{ fontSize:12, color: '#6b7280', border:'1px solid #e5e7eb', borderRadius:999, padding:'2px 8px' }}>Reservados: {stats[ev.id]?.waiting ?? '—'}</span>
-                    <span style={{ fontSize:12, color: '#6b7280', border:'1px solid #e5e7eb', borderRadius:999, padding:'2px 8px' }}>Ativos: {stats[ev.id]?.active ?? '—'}</span>
-                  </div>
-                </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <button
-                    disabled={a.publishDisabled}
-                    title={a.disabledTitle}
-                    className={`${styles.btn} ${styles.ghost}`}
-                    onClick={() => onPublish(ev.id)}
-                  >Publicar</button>
-                  <button
-                    disabled={a.cancelDisabled}
-                    title={a.disabledTitle}
-                    className={`${styles.btn} ${styles.danger}`}
-                    onClick={() => onCancel(ev)}
-                  >Cancelar</button>
-                  <button
-                    disabled={a.editDisabled}
-                    title={a.disabledTitle}
-                    className={`${styles.btn} ${styles.ghost}`}
-                    onClick={() => onEdit(ev)}
-                  >Editar</button>
-                </div>
-              </div>
-            )
-          })}
-          {filteredSorted.length > 0 && (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div style={{ fontSize:12, color:'#6b7280' }}>Página {page} de {totalPages}</div>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                <button className={`${styles.btn} ${styles.ghost}`} onClick={onClose}>Fechar</button>
-                <button className={`${styles.btn} ${styles.ghost}`} disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Anterior</button>
-                <button className={`${styles.btn} ${styles.ghost}`} disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>Próxima</button>
-              </div>
-            </div>
-          )}
+            notice('info', 'Nenhum evento encontrado')
+          ) : pageItems.map(ev => renderEventItem(ev, computeActions(ev, hasPurchases(ev.id)), stats, onPublish, onCancel, onEdit))}
+          {filteredSorted.length > 0 && renderPaginationFooter(page, totalPages, onClose, setPage)}
         </div>
       </div>
     </div>

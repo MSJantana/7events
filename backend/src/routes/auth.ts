@@ -5,11 +5,13 @@ import { env } from '../config/env'
 import { signJwt } from '../middlewares/auth'
 import { Role } from '@prisma/client'
 import { randomBytes, scryptSync } from 'node:crypto'
-import { getGoogleAuthUrl, handleGoogleCallback } from '../modules/auth/auth.service'
 import { audit } from '../utils/audit'
 import { prisma } from '../prisma'
 import { logError, logInfo } from '../utils/logger'
+import { getGoogleAuthUrl, handleGoogleCallback } from '../modules/auth/auth.service'
 import { localRegisterSchema, localLoginSchema } from '../utils/validation'
+
+type QueryValue = string | string[] | undefined
 
 const router = Router()
 
@@ -28,7 +30,7 @@ router.post('/google', async (req: Request, res: Response) => {
     const user = await prisma.user.upsert({
       where: { email: payload.email },
       update: { name: payload.name },
-      create: { email: payload.email, name: payload.name, role: Role.PARTICIPANT }
+      create: { email: payload.email, name: payload.name, role: Role.ORGANIZER }
     })
 
     if (payload.sub) {
@@ -46,7 +48,7 @@ router.post('/google', async (req: Request, res: Response) => {
     try {
       const h = String(req.body?.idToken || '').split('.')[0]
       if (h) {
-        const b = Buffer.from(h.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+        const b = Buffer.from(h.split('-').join('+').split('_').join('/'), 'base64')
         const j = JSON.parse(b.toString('utf-8'))
         alg = j?.alg
       }
@@ -61,7 +63,7 @@ router.post('/google', async (req: Request, res: Response) => {
 
 router.get('/google/url', async (_req: Request, res: Response) => {
   try {
-    const qs = _req.query as Record<string, string | string[] | undefined>
+    const qs = _req.query as Record<string, QueryValue>
     const state = typeof qs.state === 'string' ? qs.state : undefined
     const url = await getGoogleAuthUrl(state)    
     return res.json({ url })
@@ -72,7 +74,7 @@ router.get('/google/url', async (_req: Request, res: Response) => {
 
 router.get('/google', async (_req: Request, res: Response) => {
   try {
-    const qs = _req.query as Record<string, string | string[] | undefined>
+    const qs = _req.query as Record<string, QueryValue>
     const state = typeof qs.state === 'string' ? qs.state : undefined
     const url = await getGoogleAuthUrl(state)
     return res.redirect(url)
@@ -108,8 +110,19 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       maxAge: 30 * 24 * 60 * 60 * 1000
     })
     const st = typeof req.query.state === 'string' ? req.query.state : ''
-    const buy = st ? `?buy=${encodeURIComponent(st)}` : ''
-    return res.redirect(`${env.POST_LOGIN_REDIRECT_URL}${buy}`)
+    let redirect = env.POST_LOGIN_REDIRECT_URL
+    if (st) {
+      if (st.startsWith('buyId:')) {
+        const id = st.substring('buyId:'.length)
+        redirect += `?buyId=${encodeURIComponent(id)}`
+      } else if (st.startsWith('buy:')) {
+        const slug = st.substring('buy:'.length)
+        redirect += `?buy=${encodeURIComponent(slug)}`
+      } else {
+        redirect += `?buy=${encodeURIComponent(st)}`
+      }
+    }
+    return res.redirect(redirect)
   } catch (e: any) {
     logError('google_callback_failed', { error: e, ip: req.ip, clientId: env.GOOGLE_CLIENT_ID, redirectUri: env.GOOGLE_REDIRECT_URI })
     const details = e?.response?.data || e?.message || 'unknown_error'
@@ -146,7 +159,7 @@ router.get('/whoami', async (req: Request, res: Response) => {
 
 router.get('/success', async (_req: Request, res: Response) => {
   try {
-    const q = _req.query as Record<string, string | string[] | undefined>
+    const q = _req.query as Record<string, QueryValue>
     const b = typeof q.buy === 'string' && q.buy ? `?buy=${encodeURIComponent(q.buy)}` : ''
     return res.redirect(`${env.FRONTEND_URL}/login${b}`)   
   } catch {
@@ -261,8 +274,12 @@ router.post('/dev/admin-token', async (req: Request, res: Response) => {
       update: { name: n, role: Role.ADMIN, passwordHash: `${salt}:${hash}` },
       create: { email: e, name: n, role: Role.ADMIN, passwordHash: `${salt}:${hash}` }
     })
-    const token = signJwt({ sub: user.id, role: user.role })
-    return res.json({ token, user })
+    const sid = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+    const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
+    await prisma.loginSession.create({ data: { userId: user.id, sessionId: sid, expiresAt } })
+    const accessToken = signJwt({ sub: user.id, role: user.role, sid }, env.ACCESS_TOKEN_DAYS)
+    const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid }, env.REFRESH_TOKEN_DAYS)
+    return res.json({ accessToken, refreshToken, user })
   } catch {
     return res.status(500).json({ error: 'dev_admin_token_failed' })
   }
@@ -281,8 +298,12 @@ router.post('/dev/participant-token', async (req: Request, res: Response) => {
       update: { name: n, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` },
       create: { email: e, name: n, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` }
     })
-    const token = signJwt({ sub: user.id, role: user.role })
-    return res.json({ token, user })
+    const sid = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+    const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
+    await prisma.loginSession.create({ data: { userId: user.id, sessionId: sid, expiresAt } })
+    const accessToken = signJwt({ sub: user.id, role: user.role, sid }, env.ACCESS_TOKEN_DAYS)
+    const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid }, env.REFRESH_TOKEN_DAYS)
+    return res.json({ accessToken, refreshToken, user })
   } catch {
     return res.status(500).json({ error: 'dev_participant_token_failed' })
   }

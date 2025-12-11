@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-// palette removida: usamos variáveis CSS
-import { API_URL } from '../../services/api'
+import { API_URL, translateError } from '../../services/api'
 import type { User } from '../../types'
 import { isValidEmail, isStrongPassword } from '../../utils/validation'
 import styles from './modal.module.css'
@@ -13,6 +12,9 @@ type Props = {
 
 export default function AuthModal({ open, onClose, onLoggedIn }: Readonly<Props>) {
   const [showEmailForm, setShowEmailForm] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
+  const [name, setName] = useState('')
+  const [nameError, setNameError] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -30,31 +32,87 @@ export default function AuthModal({ open, onClose, onLoggedIn }: Readonly<Props>
 
   if (!open) return null
 
-  async function onLocalLogin() {
+  function resetStatus() {
     setStatus({ text: '', kind: '' })
+  }
+  function setStatusText(text: string, kind: 'ok' | 'err') {
+    setStatus({ text, kind })
+  }
+  function validateCredentials(): boolean {
     const eOk = isValidEmail(email)
     const pOk = isStrongPassword(password)
     setEmailError(eOk ? '' : 'Email inválido')
     setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
-    if (!eOk || !pOk) { setStatus({ text: 'Corrija os campos', kind: 'err' }); return }
+    return eOk && pOk
+  }
+  async function performLogin(): Promise<{ ok: boolean; error?: string }> {
+    const r = await fetch(`${API_URL}/auth/local/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password })
+    })
+    if (r.ok) return { ok: true }
+    type LoginErrorBody = { error?: string }
+    const j: LoginErrorBody = await r.json().catch(() => ({ }))
+    return { ok: false, error: j.error ?? 'Falha ao entrar' }
+  }
+  async function loadWhoami(): Promise<User | null> {
+    const w = await fetch(`${API_URL}/auth/whoami`, { credentials: 'include' })
+    if (!w.ok) return null
+    type WhoamiBody = { accessToken?: string; user?: { id: string; name: string; email?: string; role: User['role'] } }
+    const j: WhoamiBody = await w.json()
+    if (j?.accessToken) {
+      try { globalThis.localStorage.setItem('access_token', j.accessToken) } catch { void 0 }
+    }
+    if (j?.user) return { id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role }
+    return null
+  }
+
+  async function onLocalLogin() {
+    resetStatus()
+    if (!validateCredentials()) { setStatusText('Corrija os campos', 'err'); return }
     setLoading(true)
     try {
-      const r = await fetch(`${API_URL}/auth/local/login`, {
+      const res = await performLogin()
+      if (!res.ok) { setStatusText(translateError(res.error || 'local_login_failed'), 'err'); return }
+      const u = await loadWhoami()
+      if (u) { onLoggedIn(u); onClose() }
+      setStatusText('Logado', 'ok')
+    } catch {
+      setStatusText('Erro de rede', 'err')
+    } finally { setLoading(false) }
+  }
+
+  async function onLocalRegister() {
+    resetStatus()
+    const eOk = isValidEmail(email)
+    const pOk = isStrongPassword(password)
+    const nOk = !!name
+    setEmailError(eOk ? '' : 'Email inválido')
+    setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
+    setNameError(nOk ? '' : 'Nome obrigatório')
+    if (!(eOk && pOk && nOk)) { setStatusText('Corrija os campos', 'err'); return }
+    setLoading(true)
+    try {
+      const r = await fetch(`${API_URL}/auth/local/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, name, password })
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        setStatusText(translateError(j?.error || 'local_register_failed'), 'err')
+        return
+      }
+      const login = await fetch(`${API_URL}/auth/local/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password })
       })
-      if (r.ok) {
-        const w = await fetch(`${API_URL}/auth/whoami`, { credentials: 'include' })
-        if (w.ok) {
-          const j = await w.json()
-          if (j?.user) { onLoggedIn({ id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role }); onClose() }
-        }
-        setStatus({ text: 'Logado', kind: 'ok' })
-      } else {
-        const j = await r.json().catch(() => ({}))
-        setStatus({ text: String(j?.error || 'Falha ao entrar'), kind: 'err' })
+      if (!login.ok) {
+        const je = await login.json().catch(() => ({}))
+        setStatusText(translateError(je?.error || 'local_login_failed'), 'err')
+        return
       }
+      const u = await loadWhoami()
+      if (u) { onLoggedIn(u); onClose() }
+      setStatusText('Conta criada e logado', 'ok')
     } catch {
-      setStatus({ text: 'Erro de rede', kind: 'err' })
+      setStatusText('Erro de rede', 'err')
     } finally { setLoading(false) }
   }
 
@@ -88,6 +146,13 @@ export default function AuthModal({ open, onClose, onLoggedIn }: Readonly<Props>
         <button onClick={() => setShowEmailForm(v=>!v)} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, textAlign:'center', padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', background:'#ffffff', color: 'var(--text)', textDecoration:'none', fontWeight:700 }}>Continuar com Email</button>
         {showEmailForm && (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {showRegister && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                <label htmlFor="name" style={{ fontSize:12, color: 'var(--gray)' }}>Nome</label>
+                <input value={name} onChange={e=>setName(e.target.value)} placeholder="Seu nome" style={{ border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px' }} />
+                {nameError && <div className={`${styles.notice} ${styles.noticeErr}`}>{nameError}</div>}
+              </div>
+            )}
             <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
               <label htmlFor="email" style={{ fontSize:12, color: 'var(--gray)' }}>Email</label>
               <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu@email.com" style={{ border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px' }} />
@@ -102,8 +167,13 @@ export default function AuthModal({ open, onClose, onLoggedIn }: Readonly<Props>
               {passwordError && <div className={`${styles.notice} ${styles.noticeErr}`}>{passwordError}</div>}
             </div>
             <div className={styles.actions}>
-              <button disabled={loading} onClick={onLocalLogin} style={{ border:'none', background: 'var(--brand)', color:'#fff', borderRadius:8, padding:'10px 12px', fontWeight:700 }}>{loading ? 'Entrando...' : 'Entrar'}</button>
+              {showRegister ? (
+                <button disabled={loading} onClick={onLocalRegister} style={{ border:'none', background: 'var(--brand)', color:'#fff', borderRadius:8, padding:'10px 12px', fontWeight:700 }}>{loading ? 'Cadastrando...' : 'Cadastrar'}</button>
+              ) : (
+                <button disabled={loading} onClick={onLocalLogin} style={{ border:'none', background: 'var(--brand)', color:'#fff', borderRadius:8, padding:'10px 12px', fontWeight:700 }}>{loading ? 'Entrando...' : 'Entrar'}</button>
+              )}
             </div>
+            <div style={{ fontSize:12, color: 'var(--gray)', textAlign:'center' }}>Não possui uma conta? <button type="button" onClick={() => setShowRegister(true)} style={{ background:'transparent', border:'none', color: 'var(--brand)', textDecoration:'none', fontWeight:700, cursor:'pointer' }}>Cadastre-se</button></div>
           </div>
         )}
         </div>

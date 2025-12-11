@@ -46,39 +46,11 @@ export default function SevenEventsPage() {
   const [selectedTT, setSelectedTT] = useState('')
   const [qty, setQty] = useState(1)
 
-  async function handleOpenEvent(ev: EventSummary) {
-    const i = events.findIndex(e => e.id === ev.id)
-    setActiveIndex(() => Math.max(i, 0))
-    const slug = ev.title
-      .toLowerCase()
-      .normalize('NFD')
-      .replaceAll(/[\u0300-\u036f]/g, '')
-      .replaceAll(/([^a-z0-9]+)/g, '-')
-      .replaceAll(/(^-+)|(-+$)/g, '')
-    setShowEventModal(true)
-    setEventLoading(true)
-    setEventError('')
-    setEventData(null)
-    try {
-      const r = await fetch(`${API_URL}/events/slug/${slug}`)
-      if (!r.ok) throw new Error('not_found')
-      const j = await r.json()
-      setEventData(j)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
-      setEventError(msg)
-    } finally { setEventLoading(false) }
-  }
+  // card abre compra diretamente; detalhes continuam disponíveis por outras ações
 
   async function handleMakeOrder() {
     const active = events[activeIndex]
     if (!active) return
-    const slug = active.title
-      .toLowerCase()
-      .normalize('NFD')
-      .replaceAll(/[\u0300-\u036f]/g, '')
-      .replaceAll(/([^a-z0-9]+)/g, '-')
-      .replaceAll(/(^-+)|(-+$)/g, '')
     setShowPurchaseModal(true)
     setEventLoading(true)
     setEventError('')
@@ -86,7 +58,7 @@ export default function SevenEventsPage() {
     setSelectedTT('')
     setQty(1)
     try {
-      const r = await fetch(`${API_URL}/events/slug/${slug}`)
+      const r = await fetch(`${API_URL}/events/${active.id}`)
       if (!r.ok) throw new Error('not_found')
       const j = await r.json()
       setEventData(j)
@@ -115,12 +87,55 @@ export default function SevenEventsPage() {
     } finally { setEventLoading(false) }
   }
 
+  async function openPurchaseById(id: string) {
+    setShowPurchaseModal(true)
+    setEventLoading(true)
+    setEventError('')
+    setEventData(null)
+    setSelectedTT('')
+    setQty(1)
+    try {
+      const r = await fetch(`${API_URL}/events/${id}`)
+      if (!r.ok) throw new Error('not_found')
+      const j = await r.json()
+      setEventData(j)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
+      setEventError(msg)
+    } finally { setEventLoading(false) }
+  }
+
+  async function openDetailsById(id: string) {
+    setShowEventModal(true)
+    setEventLoading(true)
+    setEventError('')
+    setEventData(null)
+    try {
+      const r = await fetch(`${API_URL}/events/${id}`)
+      if (!r.ok) throw new Error('not_found')
+      const j = await r.json()
+      setEventData(j)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
+      setEventError(msg)
+    } finally { setEventLoading(false) }
+  }
+
   useEffect(() => {
+    const buyId = searchParams.get('buyId') || ''
     const buy = searchParams.get('buy') || ''
-    if (buy && user) {
-      openPurchaseBySlug(buy)
-      searchParams.delete('buy')
-      setSearchParams(searchParams)
+    if (user) {
+      if (buyId) {
+        openPurchaseById(buyId)
+        searchParams.delete('buyId')
+        setSearchParams(searchParams)
+        return
+      }
+      if (buy) {
+        openPurchaseBySlug(buy)
+        searchParams.delete('buy')
+        setSearchParams(searchParams)
+      }
     }
   }, [searchParams, user, setSearchParams])
 
@@ -141,7 +156,23 @@ export default function SevenEventsPage() {
         onLogout={async () => { await logout(); setUser(null) }}
         onMakeOrder={() => { if (user) { handleMakeOrder() } else { setShowAuthModal(true) } }}
       />
-      <EventsCarousel events={events} activeIndex={activeIndex} onSelect={(i) => setActiveIndex(() => i)} onOpenEvent={handleOpenEvent} />
+      <EventsCarousel
+        events={events}
+        activeIndex={activeIndex}
+        onSelect={(i) => setActiveIndex(() => i)}
+        onOpenEvent={(ev) => {
+          setActiveIndex(events.findIndex(e => e.id===ev.id))
+          if (ev.status === 'FINALIZED') {
+            void openDetailsById(ev.id)
+            return
+          }
+          if (user) {
+            void openPurchaseById(ev.id)
+          } else {
+            setShowAuthModal(true)
+          }
+        }}
+      />
 
       <EventDetailModal
         open={showEventModal}

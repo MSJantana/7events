@@ -1,6 +1,6 @@
 require('dotenv').config()
 const { spawnSync } = require('node:child_process')
-const { mkdirSync, writeFileSync } = require('node:fs')
+const { mkdirSync, writeFileSync, existsSync, readdirSync, rmSync } = require('node:fs')
 const { join } = require('node:path')
 
 function run(cmd, args, opts = {}) {
@@ -29,6 +29,17 @@ function timestamp() {
 
 function main() {
   process.stdout.write(`Using Prisma config datasource\n`)
+  // clean uploads/events files before creating baseline
+  try {
+    const uploadsDir = join(process.cwd(), 'uploads', 'events')
+    if (existsSync(uploadsDir)) {
+      for (const entry of readdirSync(uploadsDir)) {
+        const p = join(uploadsDir, entry)
+        try { rmSync(p, { recursive: true, force: true }) } catch {}
+      }
+      process.stdout.write(`Cleaned uploads/events directory\n`)
+    }
+  } catch {}
   const name = `${timestamp()}_baseline`
   const dir = join(process.cwd(), 'prisma', 'migrations', name)
   mkdirSync(dir, { recursive: true })

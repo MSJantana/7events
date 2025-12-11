@@ -116,7 +116,7 @@ export default function Header({
             }}
             className={styles.ctaBtn}
           >
-            Make an order
+            Comprar Ingresso
           </button>
 
           <div className={styles.profileWrap}>

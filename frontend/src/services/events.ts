@@ -55,6 +55,10 @@ export async function createTicketType(eventId: string, payload: { name: string;
   return fetchJSON(`${API_URL}/events/${eventId}/ticket-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 }
 
+export async function updateTicketType(eventId: string, ticketTypeId: string, payload: Partial<{ name: string; price: number; quantity: number }>): Promise<void> {
+  await fetchJSON(`${API_URL}/events/${eventId}/ticket-types/${ticketTypeId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+}
+
 export async function getEventsByStatusPaginated(status: 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED', page: number, limit: number): Promise<{ items: EventSummary[]; page: number; limit: number; total: number }> {
   return fetchJSON<{ items: EventSummary[]; page: number; limit: number; total: number }>(`${API_URL}/events?status=${status}&page=${page}&limit=${limit}`)
 }

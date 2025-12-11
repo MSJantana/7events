@@ -53,26 +53,26 @@ export const updateTicketTypeSchema = z.object({
 })
 
 export const createUserSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(2),
-  role: z.enum(['ADMIN', 'ORGANIZER', 'PARTICIPANT']).default('PARTICIPANT'),
+  role: z.enum(['ADMIN', 'ORGANIZER']).default('ORGANIZER'),
   password: z.string().min(8)
 })
 
 export const updateUserSchema = z.object({
-  email: z.string().email().optional(),
+  email: z.email().optional(),
   name: z.string().min(2).optional(),
-  role: z.enum(['ADMIN', 'ORGANIZER', 'PARTICIPANT']).optional(),
+  role: z.enum(['ADMIN', 'ORGANIZER']).optional(),
   password: z.string().min(8).optional()
 })
 
 export const localRegisterSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(2),
   password: z.string().min(8)
 })
 
 export const localLoginSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8)
 })

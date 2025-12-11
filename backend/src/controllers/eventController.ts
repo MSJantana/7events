@@ -7,9 +7,19 @@ import { eventService } from '../services/eventService'
 import { prisma } from '../prisma'
 import { isAdmin, isOwner } from '../utils/authz'
 import { createEventSchema, updateEventSchema } from '../utils/validation'
+import { logWarn } from '../utils/logger'
 
 type AuthedRequest = Request & { user: { sub: string; role: Role; sid?: string } }
 type UploadRequest = AuthedRequest & { file?: Express.Multer.File }
+
+function toSlug(s: string) {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/(?:^-+)|(?:-+$)/g, '')
+}
 
 export const eventController = {
   async list(req: Request, res: Response) {
@@ -28,14 +38,6 @@ export const eventController = {
 
   async getBySlug(req: Request, res: Response) {
     const { slug } = req.params as { slug: string }
-    function toSlug(s: string) {
-      return s
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-    }
     const events = await eventService.listEvents('PUBLISHED')
     const found = events.find(e => toSlug(e.title) === slug)
     if (!found) return res.status(404).json({ error: 'not_found' })
@@ -74,7 +76,9 @@ export const eventController = {
       } as any)
       res.status(201).json(event)
     } catch (e: any) {
-      return res.status(400).json({ error: 'invalid_body', details: e.errors })
+      const issues = e?.issues || e?.errors || []
+      logWarn('event_create_invalid_body', { requestId: (req as any)?.requestId, issuesCount: Array.isArray(issues) ? issues.length : 0, fields: Array.isArray(issues) ? issues.map((it: any) => it?.path?.[0]).filter(Boolean) : undefined })
+      return res.status(400).json({ error: 'invalid_body', details: issues })
     }
   },
 
@@ -93,7 +97,9 @@ export const eventController = {
       const updated = await eventService.updateEvent(id, data)
       res.json(updated)
     } catch (e: any) {
-      return res.status(400).json({ error: 'invalid_body', details: e.errors })
+      const issues = e?.issues || e?.errors || []
+      logWarn('event_update_invalid_body', { requestId: (req as any)?.requestId, issuesCount: Array.isArray(issues) ? issues.length : 0, fields: Array.isArray(issues) ? issues.map((it: any) => it?.path?.[0]).filter(Boolean) : undefined })
+      return res.status(400).json({ error: 'invalid_body', details: issues })
     }
   },
 

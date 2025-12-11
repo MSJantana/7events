@@ -15,6 +15,7 @@ export const env = {
   ACCESS_TOKEN_DAYS: Number(process.env.ACCESS_TOKEN_DAYS || 7),
   REFRESH_TOKEN_DAYS: Number(process.env.REFRESH_TOKEN_DAYS || 30),
   SESSION_TTL_DAYS: Number(process.env.SESSION_TTL_DAYS || 30),
+  INACTIVITY_TTL_MINUTES: Number(process.env.INACTIVITY_TTL_MINUTES || 30),
   UPLOAD_MAX_MB: Number(process.env.UPLOAD_MAX_MB || 5),
   IMAGE_WEBP_QUALITY: Number(process.env.IMAGE_WEBP_QUALITY || 80),
   IMAGE_MAIN_MAX_W: Number(process.env.IMAGE_MAIN_MAX_W || 1600),

@@ -34,7 +34,8 @@ router.post('/:id/cancel', requireAuth, (req, res) => eventController.cancel(req
 router.post('/:id/image', requireAuth, (req, res) => {
   upload.single('image')(req as any, res as any, (err: any) => {
     if (err) {
-      const code = (err && (err.code || err.message)) || 'upload_failed'
+      const e = err as { code?: string; message?: string }
+      const code = e.code ?? e.message ?? 'upload_failed'
       const status = String(code).toUpperCase() === 'LIMIT_FILE_SIZE' ? 413 : 400
       return res.status(status).json({ error: 'upload_failed', details: String(code) })
     }

@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'ORGANIZER' | 'PARTICIPANT'
+export type UserRole = 'ADMIN' | 'ORGANIZER'
 export type User = { id: string; name: string; email?: string; role: UserRole }
 
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'
@@ -7,4 +7,4 @@ export type EventDetail = EventSummary & { capacity: number; minPrice: number; t
 
 export type TicketType = { id: string; name: string; price: number; quantity: number }
 export type Ticket = { id?: string; eventId?: string; status: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED'; ticketType?: { name?: string; price?: number } }
-export type Order = { id: string; status: 'PENDING' | 'PAID' | 'CANCELED' | 'REFUNDED'; createdAt?: string; tickets?: Array<{ id?: string; eventId?: string; status?: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED'; ticketType?: { name?: string; price?: number } }> }
+export type Order = { id: string; status: 'PENDING' | 'PAID' | 'CANCELED' | 'REFUNDED'; createdAt?: string; tickets?: Array<{ id?: string; eventId?: string; status?: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED'; ticketType?: { name?: string; price?: number; createdAt?: string; updatedAt?: string } }> }

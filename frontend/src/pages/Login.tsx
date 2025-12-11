@@ -5,79 +5,44 @@ import { palette } from '../theme/palette'
 import EventsCarousel from '../components/EventsCarousel'
 import { useToast } from '../hooks/useToast'
 import LoginModal from '../components/modals/LoginModal'
-import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import { isValidEmail, isStrongPassword } from '../utils/validation'
+import { translateError } from '../services/api'
+import EventPurchaseModal from '../components/modals/EventPurchaseModal'
+import EventDetailModal from '../components/modals/EventDetailModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
 import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
 import EditEventModal from '../components/modals/EditEventModal'
 import Header from '../components/Header'
-import type { EventSummary, User } from '../types'
+import type { EventSummary, EventDetail, User } from '../types'
 
-async function persistAccessTokenFrom(resp: Response) {
-  try {
-    const jr = await resp.json().catch(() => ({}))
-    if (jr?.accessToken) {
-      try { globalThis.localStorage.setItem('access_token', jr.accessToken) } catch { void 0 }
-    }
-  } catch { void 0 }
-}
+ 
 
-async function loadWhoami(API: string, setUser: Dispatch<SetStateAction<User | null>>) {
-  try {
-    const w = await fetch(`${API}/auth/whoami`, { credentials: 'include' })
-    if (!w.ok) return
-    const j = await w.json()
-    if (j?.accessToken) {
-      try { globalThis.localStorage.setItem('access_token', j.accessToken) } catch { void 0 }
-    }
-    if (j?.user) setUser({ id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role })
-  } catch { setUser(u => u) }
-}
-
-function validateCredentials(
-  email: string,
-  password: string,
-  setEmailError: Dispatch<SetStateAction<string>>,
-  setPasswordError: Dispatch<SetStateAction<string>>
-) {
-  const eOk = isValidEmail(email)
-  const pOk = isStrongPassword(password)
-  setEmailError(eOk ? '' : 'Email inválido')
-  setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
-  return eOk && pOk
-}
+ 
 
 export default function Login() {
   const API = useMemo(() => (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000', [])
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const buySlug = searchParams.get('buy') || ''
+  const buyId = searchParams.get('buyId') || ''
+  
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
-  
+  const [name, setName] = useState('')
+  const [nameError, setNameError] = useState('')
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<{ text: string, kind: 'ok' | 'err' | '' }>({ text: '', kind: '' })
   const [showModal, setShowModal] = useState(false)
   const [showEmailForm, setShowEmailForm] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
   const [showEventModal, setShowEventModal] = useState(false)
+  const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [eventLoading, setEventLoading] = useState(false)
   const [eventError, setEventError] = useState('')
-  const [eventData, setEventData] = useState<{
-    id: string
-    title: string
-    description: string
-    location: string
-    startDate: string
-    endDate: string
-    status: 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'
-    imageUrl?: string | null
-    capacity: number
-    minPrice: number
-    ticketTypes: { id: string; name: string; price: number; quantity: number }[]
-  } | null>(null)
+  const [eventData, setEventData] = useState<EventDetail | null>(null)
   const [selectedTT, setSelectedTT] = useState<string>('')
   const [qty, setQty] = useState<number>(1)
 
@@ -119,6 +84,65 @@ export default function Login() {
   }, [API])
 
   useEffect(() => {
+    const openBySlug = async (slug: string) => {
+      setEventLoading(true)
+      setEventError('')
+      setEventData(null)
+      try {
+        const r = await fetch(`${API}/events/slug/${slug}`, { credentials: 'include' })
+        if (!r.ok) {
+          const j: Partial<{ error?: string }> = await r.json().catch(() => ({}))
+          throw new Error(j?.error || 'not_found')
+        }
+        const j: EventDetail = await r.json()
+        setEventData(j)
+        if (j.status === 'FINALIZED') {
+          setShowDetailsModal(true)
+          setShowEventModal(false)
+        } else {
+          setShowEventModal(true)
+          const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
+          setSelectedTT(firstAvailable?.id || '')
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Falha ao carregar'
+        setEventError(msg)
+      } finally {
+        setEventLoading(false)
+      }
+    }
+    const openById = async (id: string) => {
+      setEventLoading(true)
+      setEventError('')
+      setEventData(null)
+      try {
+        const r = await fetch(`${API}/events/${id}`, { credentials: 'include' })
+        if (!r.ok) throw new Error('not_found')
+        const j: EventDetail = await r.json()
+        setEventData(j)
+        if (j.status === 'FINALIZED') {
+          setShowDetailsModal(true)
+          setShowEventModal(false)
+        } else {
+          setShowEventModal(true)
+          const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
+          setSelectedTT(firstAvailable?.id || '')
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Falha ao carregar'
+        setEventError(msg)
+      } finally {
+        setEventLoading(false)
+      }
+    }
+    const param = buyId || buySlug
+    if (!param) return
+    if (!user) { setShowModal(true); setShowEmailForm(false) }
+    if (buyId) openById(buyId)
+    else openBySlug(buySlug)
+  }, [API, buySlug, buyId, user])
+
+  useEffect(() => {
     if (!Array.isArray(events) || events.length <= 1) return
     const id = setInterval(() => {
       setActiveIndex(i => (i + 1) >= events.length ? 0 : (i + 1))
@@ -128,43 +152,7 @@ export default function Login() {
 
   
 
-  async function onLocalLogin() {
-    setStatus({ text: '', kind: '' })
-
-    function setStatusTemp(text: string, kind: 'ok' | 'err', ms = 5000) {
-      setStatus({ text, kind })
-      setTimeout(() => setStatus({ text: '', kind: '' }), ms)
-    }
-
-    if (!validateCredentials(email, password, setEmailError, setPasswordError)) {
-      setStatusTemp('Corrija os campos', 'err')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const resp = await fetch(`${API}/auth/local/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password })
-      })
-      if (!resp.ok) {
-        const j = await resp.json().catch(() => ({}))
-        setStatusTemp(j?.error || 'Falha no login', 'err')
-        return
-      }
-      await persistAccessTokenFrom(resp)
-      await loadWhoami(API, setUser)
-      setShowModal(false)
-      setStatusTemp('Logado com sucesso', 'ok')
-      navigate(buySlug ? `/?buy=${encodeURIComponent(buySlug)}` : '/', { replace: true })
-    } catch {
-      setStatusTemp('Falha no login', 'err')
-    } finally {
-      setLoading(false)
-    }
-  }
+  
 
   
 
@@ -188,10 +176,10 @@ export default function Login() {
         onOpenMyEvents={() => { if (user) { setShowMyEvents(true) } else { setShowModal(true); setShowEmailForm(false) } }}
         onOpenMyTickets={() => { if (user) { setShowMyTickets(true) } else { setShowModal(true); setShowEmailForm(false) } }}
         onLoginOpen={() => { setShowModal(true); setShowEmailForm(false) }}
-        onLogout={async () => { try { await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' }); setUser(null); setStatus({ text:'Sessão encerrada', kind:'ok' }); setTimeout(()=> setStatus({ text:'', kind:'' }), 2000) } catch { setStatus({ text:'Falha ao sair', kind:'err' }); setTimeout(()=> setStatus({ text:'', kind:'' }), 2000) } }}
+        onLogout={async () => { try { await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' }); setUser(null); show({ text:'Sessão encerrada', kind:'ok' }) } catch { show({ text:'Falha ao sair', kind:'err' }) } }}
         onMakeOrder={() => {
           const active = events[activeIndex]
-          if (!active) { if (!user) { setShowModal(true); setShowEmailForm(false) } ; return }
+          if (!active) { if (!user) { setShowModal(true) } ; return }
           const slug = active.title
             .toLowerCase()
             .normalize('NFD')
@@ -225,26 +213,14 @@ export default function Login() {
             events={events}
             activeIndex={activeIndex}
             onSelect={(i)=> setActiveIndex(i)}
-            onOpenEvent={async (ev) => {
-              const slug = ev.title.toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'').replaceAll(/[^a-z0-9]+/g,'-').replaceAll(/(?:^-+|-+$)/g,'')
-              setShowEventModal(true)
-              setEventLoading(true)
-              setEventError('')
-              setEventData(null)
-              try {
-                const r = await fetch(`${API}/events/slug/${slug}`)
-                if (!r.ok) {
-                  const j = await r.json().catch(() => ({}))
-                  throw new Error(j?.error || 'not_found')
-                }
-                const j = await r.json()
-                setEventData(j)
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : 'Falha ao carregar'
-                setEventError(msg)
-              } finally {
-                setEventLoading(false)
+            onOpenEvent={(ev) => {
+              if (!user) {
+                setShowModal(true)
+                setShowEmailForm(false)
+                navigate(`/?buyId=${encodeURIComponent(ev.id)}`)
+                return
               }
+              navigate(`/?buyId=${encodeURIComponent(ev.id)}`)
             }}
           />
         </div>
@@ -253,20 +229,90 @@ export default function Login() {
         open={showModal}
         API={API}
         buySlug={buySlug}
+        buyId={buyId}
+        onClose={() => setShowModal(false)}
         email={email}
         password={password}
         emailError={emailError}
         passwordError={passwordError}
         showPass={showEmailForm}
+        showRegister={showRegister}
         loading={loading}
         status={status}
-        onClose={() => setShowModal(false)}
         setEmail={setEmail}
         setPassword={setPassword}
         setEmailError={setEmailError}
         setPasswordError={setPasswordError}
         setShowPass={(v)=> setShowEmailForm(v)}
-        onLocalLogin={onLocalLogin}
+        setShowRegister={(v)=> setShowRegister(v)}
+        name={name}
+        nameError={nameError}
+        setName={setName}
+        setNameError={setNameError}
+        onLocalLogin={async () => {
+          setStatus({ text: '', kind: '' })
+          function setStatusTemp(text: string, kind: 'ok' | 'err', ms = 5000) {
+            setStatus({ text, kind })
+            setTimeout(() => setStatus({ text: '', kind: '' }), ms)
+          }
+          if (!validateCredentials(email, password, setEmailError, setPasswordError)) { setStatusTemp('Corrija os campos', 'err'); return }
+          setLoading(true)
+          try {
+            const resp = await fetch(`${API}/auth/local/login`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password })
+            })
+            if (!resp.ok) {
+              const j = await resp.json().catch(() => ({}))
+              setStatusTemp(translateError(j?.error || 'local_login_failed'), 'err'); return
+            }
+            await persistAccessTokenFrom(resp)
+            await loadWhoami(API, setUser)
+            setShowModal(false)
+            setStatusTemp('Logado com sucesso', 'ok')
+            const next = buyId ? `/?buyId=${encodeURIComponent(buyId)}` : (buySlug ? `/?buy=${encodeURIComponent(buySlug)}` : '/')
+            navigate(next, { replace: true })
+          } catch {
+            setStatusTemp('Falha no login', 'err')
+          } finally { setLoading(false) }
+        }}
+        onLocalRegister={async () => {
+          setStatus({ text: '', kind: '' })
+          function setStatusTemp(text: string, kind: 'ok' | 'err', ms = 5000) {
+            setStatus({ text, kind })
+            setTimeout(() => setStatus({ text: '', kind: '' }), ms)
+          }
+          const eOk = isValidEmail(email)
+          const pOk = isStrongPassword(password)
+          const nOk = !!name
+          setEmailError(eOk ? '' : 'Email inválido')
+          setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
+          setNameError(nOk ? '' : 'Nome obrigatório')
+          if (!(eOk && pOk && nOk)) { setStatusTemp('Corrija os campos', 'err'); return }
+          setLoading(true)
+          try {
+            const r = await fetch(`${API}/auth/local/register`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, name, password })
+            })
+            if (!r.ok) {
+              const j = await r.json().catch(() => ({}))
+              setStatusTemp(translateError(j?.error || 'local_register_failed'), 'err'); return
+            }
+            const login = await fetch(`${API}/auth/local/login`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password })
+            })
+            if (!login.ok) {
+              const je = await login.json().catch(() => ({}))
+              setStatusTemp(translateError(je?.error || 'local_login_failed'), 'err'); return
+            }
+            await loadWhoami(API, setUser)
+            setShowModal(false)
+            setStatusTemp('Conta criada e logado', 'ok')
+            const next = buyId ? `/?buyId=${encodeURIComponent(buyId)}` : (buySlug ? `/?buy=${encodeURIComponent(buySlug)}` : '/')
+            navigate(next, { replace: true })
+          } catch {
+            setStatusTemp('Falha no cadastro', 'err')
+          } finally { setLoading(false) }
+        }}
       />
 
       <EventPurchaseModal
@@ -280,6 +326,14 @@ export default function Login() {
         onClose={() => setShowEventModal(false)}
         onSelectTT={(id)=> setSelectedTT(id)}
         onChangeQty={(n)=> setQty(n)}
+      />
+
+      <EventDetailModal
+        open={showDetailsModal}
+        loading={eventLoading}
+        error={eventError}
+        data={eventData}
+        onClose={() => setShowDetailsModal(false)}
       />
 
       <CreateEventModal open={showCreateModal} onClose={() => setShowCreateModal(false)} user={user} onCreated={async () => { await reloadEvents(); setShowCreateModal(false) }} />
@@ -308,3 +362,36 @@ export default function Login() {
 }
 
 
+function validateCredentials(
+  email: string,
+  password: string,
+  setEmailError: Dispatch<SetStateAction<string>>,
+  setPasswordError: Dispatch<SetStateAction<string>>
+) {
+  const eOk = isValidEmail(email)
+  const pOk = isStrongPassword(password)
+  setEmailError(eOk ? '' : 'Email inválido')
+  setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
+  return eOk && pOk
+}
+
+async function persistAccessTokenFrom(resp: Response) {
+  try {
+    const jr = await resp.json().catch(() => ({}))
+    if (jr?.accessToken) {
+      try { globalThis.localStorage.setItem('access_token', jr.accessToken) } catch { void 0 }
+    }
+  } catch { void 0 }
+}
+
+async function loadWhoami(API: string, setUser: Dispatch<SetStateAction<User | null>>) {
+  try {
+    const w = await fetch(`${API}/auth/whoami`, { credentials: 'include' })
+    if (!w.ok) return
+    const j = await w.json()
+    if (j?.accessToken) {
+      try { globalThis.localStorage.setItem('access_token', j.accessToken) } catch { void 0 }
+    }
+    if (j?.user) setUser({ id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role })
+  } catch { setUser(u => u) }
+}

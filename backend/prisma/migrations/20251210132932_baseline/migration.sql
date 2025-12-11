@@ -1,0 +1,19 @@
+-- AlterTable
+ALTER TABLE `Event` MODIFY `status` ENUM('DRAFT', 'PUBLISHED', 'CANCELED', 'FINALIZED') NOT NULL DEFAULT 'DRAFT';
+
+-- AlterTable
+ALTER TABLE `LoginSession` ADD COLUMN `lastActivity` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
+
+-- AlterTable
+ALTER TABLE `Order` ADD COLUMN `code` VARCHAR(191) NULL;
+
+-- AlterTable
+ALTER TABLE `TicketType` ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    ADD COLUMN `updatedAt` DATETIME(3) NULL;
+
+-- AlterTable
+ALTER TABLE `User` MODIFY `updatedAt` DATETIME(3) NULL;
+
+-- CreateIndex
+CREATE UNIQUE INDEX `Order_code_key` ON `Order`(`code`);
+

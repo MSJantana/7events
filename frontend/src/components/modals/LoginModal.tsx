@@ -7,23 +7,31 @@ type Props = {
   open: boolean
   API: string
   buySlug?: string
+  buyId?: string
+  onClose: () => void
   email: string
   password: string
   emailError: string
   passwordError: string
   showPass: boolean
+  showRegister: boolean
   loading: boolean
   status: { text: string; kind: 'ok' | 'err' | '' }
-  onClose: () => void
   setEmail: (v: string) => void
   setPassword: (v: string) => void
   setEmailError: (v: string) => void
   setPasswordError: (v: string) => void
   setShowPass: (v: boolean) => void
+  setShowRegister: (v: boolean) => void
+  name: string
+  nameError: string
+  setName: (v: string) => void
+  setNameError: (v: string) => void
   onLocalLogin: () => Promise<void> | void
+  onLocalRegister: () => Promise<void> | void
 }
 
-export default function LoginModal({ open, API, buySlug, email, password, emailError, passwordError, showPass, loading, status, onClose, setEmail, setPassword, setEmailError, setPasswordError, setShowPass, onLocalLogin }: Readonly<Props>) {
+export default function LoginModal({ open, API, buySlug, buyId, onClose, email, password, emailError, passwordError, showPass, showRegister, loading, status, setEmail, setPassword, setEmailError, setPasswordError, setShowPass, setShowRegister, name, nameError, setName, setNameError, onLocalLogin, onLocalRegister }: Readonly<Props>) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -31,7 +39,7 @@ export default function LoginModal({ open, API, buySlug, email, password, emailE
     return () => globalThis.removeEventListener('keydown', onKey)
   }, [open, onClose])
   if (!open) return null
-  const queryState = buySlug ? ('?state=' + encodeURIComponent(buySlug)) : ''
+  const queryState = buyId ? ('?state=' + encodeURIComponent('buyId:' + buyId)) : (buySlug ? ('?state=' + encodeURIComponent('buy:' + buySlug)) : '')
   const googleHref = `${API}/auth/google${queryState}`
   return (
     <div className={styles.overlay}>
@@ -56,12 +64,12 @@ export default function LoginModal({ open, API, buySlug, email, password, emailE
           {showPass && (
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               <label style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                    <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Email</span>
-                    <input value={email} onChange={(e) => { const v=e.target.value; setEmail(v); let err=''; if (v) { if (!isValidEmail(v)) { err='Email inválido' } } setEmailError(err) }} inputMode="email" placeholder="seu@email.com" pattern="[^\s@]+@[^\s@]+\.[^\s@]+" disabled={loading} style={{ padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', fontSize:14 }} />
+                <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Email</span>
+                <input value={email} onChange={(e) => { const v=e.target.value; setEmail(v); let err=''; if (v) { if (!isValidEmail(v)) { err='Email inválido' } } setEmailError(err) }} inputMode="email" placeholder="seu@email.com" pattern="[^\s@]+@[^\s@]+\.[^\s@]+" disabled={loading} style={{ padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', fontSize:14 }} />
                 {emailError && <span className={`${styles.notice} ${styles.noticeErr}`}>{emailError}</span>}
               </label>
               <label style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                    <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Senha</span>
+                <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Senha</span>
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                   <input value={password} onChange={(e) => { const v=e.target.value; setPassword(v); let err=''; if (v) { if (!isStrongPassword(v)) { err='Senha deve ter 8+ e incluir maiúscula, minúscula e dígito' } } setPasswordError(err) }} type={showPass ? 'text' : 'password'} placeholder="••••••••" minLength={8} disabled={loading} style={{ flex:1, padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', fontSize:14 }} />
                   <button type="button" onClick={() => setShowPass(!showPass)} disabled={loading} style={{ padding:'10px 12px', borderRadius:12, border:'1px solid var(--border)', background:'#fff', color:'var(--text)', fontWeight:600 }}>{showPass? 'Ocultar' : 'Mostrar'}</button>
@@ -79,7 +87,37 @@ export default function LoginModal({ open, API, buySlug, email, password, emailE
               )}
             </div>
           )}
-          <div style={{ fontSize:12, color: 'var(--gray)', textAlign:'center' }}>Não possui uma conta? <button type="button" onClick={() => setShowPass(true)} style={{ background:'transparent', border:'none', color: 'var(--brand)', textDecoration:'none', fontWeight:700, cursor:'pointer' }}>Cadastre-se</button></div>
+          {showRegister && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <label style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Nome</span>
+                <input value={name} onChange={(e)=> { const v=e.target.value; setName(v); setNameError(!v ? 'Nome obrigatório' : '') }} placeholder="Seu nome" disabled={loading} style={{ padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', fontSize:14 }} />
+                {nameError && <span className={`${styles.notice} ${styles.noticeErr}`}>{nameError}</span>}
+              </label>
+              <label style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Email</span>
+                <input value={email} onChange={(e)=> { const v=e.target.value; setEmail(v); let err=''; if (v) { if (!isValidEmail(v)) { err='Email inválido' } } setEmailError(err) }} inputMode="email" placeholder="seu@email.com" disabled={loading} style={{ padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', fontSize:14 }} />
+                {emailError && <span className={`${styles.notice} ${styles.noticeErr}`}>{emailError}</span>}
+              </label>
+              <label style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <span style={{ fontSize:14, color: 'var(--text)', fontWeight:600 }}>Senha</span>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <input value={password} onChange={(e)=> { const v=e.target.value; setPassword(v); let err=''; if (v) { if (!isStrongPassword(v)) { err='Senha deve ter 8+ e incluir maiúscula, minúscula e dígito' } } setPasswordError(err) }} type="password" placeholder="••••••••" minLength={8} disabled={loading} style={{ flex:1, padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)', fontSize:14 }} />
+                </div>
+                {passwordError && <span className={`${styles.notice} ${styles.noticeErr}`}>{passwordError}</span>}
+              </label>
+              <div className={styles.actions}>
+                <button onClick={onLocalRegister} disabled={loading || !!nameError || !!emailError || !!passwordError || !name || !email || !password} style={{ padding:'12px 14px', borderRadius:12, border:'1px solid var(--black)', background: 'var(--black)', color:'#fff', fontWeight:700, letterSpacing:0.2, opacity:(loading || !!nameError || !!emailError || !!passwordError || !name || !email || !password) ? 0.7 : 1 }}>{loading ? 'Cadastrando...' : 'Cadastrar'}</button>
+              </div>
+              {status.text && (
+                <div className={`${styles.notice} ${status.kind==='ok' ? styles.noticeOk : styles.noticeErr}`}>
+                  <span aria-hidden>{status.kind==='ok' ? '✅' : '⛔'}</span>
+                  <span>{status.text}</span>
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ fontSize:12, color: 'var(--gray)', textAlign:'center' }}>Não possui uma conta? <button type="button" onClick={() => { setShowRegister(true); setShowPass(false) }} style={{ background:'transparent', border:'none', color: 'var(--brand)', textDecoration:'none', fontWeight:700, cursor:'pointer' }}>Cadastre-se</button></div>
         </div>
       </div>
     </div>

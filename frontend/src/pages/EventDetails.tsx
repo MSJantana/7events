@@ -91,12 +91,12 @@ export default function EventDetails() {
   const canBuy = canBuyTickets(data, expired)
   const soldOut = soldOutTickets(data, expired, hasTT)
   function onBuyClick(){
-    const s = slug
+    const id = data?.id || ''
     if (!user) {
-      navigate(`/login?buy=${encodeURIComponent(s)}`)
+      navigate(id ? `/login?buyId=${encodeURIComponent(id)}` : `/login?buy=${encodeURIComponent(slug)}`)
       return
     }
-    navigate(`/?buy=${encodeURIComponent(s)}`)
+    navigate(id ? `/?buyId=${encodeURIComponent(id)}` : `/?buy=${encodeURIComponent(slug)}`)
   }
 
   let content: ReactNode

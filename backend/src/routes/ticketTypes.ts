@@ -3,6 +3,7 @@ import { prisma } from '../prisma'
 import { requireAuth, optionalAuth } from '../middlewares/auth'
 import { isAdmin, isOwner } from '../utils/authz'
 import { createTicketTypeSchema, updateTicketTypeSchema } from '../utils/validation'
+import { logWarn } from '../utils/logger'
 
 const router = Router({ mergeParams: true })
 
@@ -28,7 +29,9 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     parsed = createTicketTypeSchema.parse(req.body) as any
   } catch (e: any) {
-    return res.status(400).json({ error: 'invalid_body', details: e.errors })
+    const issues = e?.issues || e?.errors || []
+    logWarn('ticket_type_create_invalid_body', { requestId: (req as any)?.requestId, issuesCount: Array.isArray(issues) ? issues.length : 0, fields: Array.isArray(issues) ? issues.map((it: any) => it?.path?.[0]).filter(Boolean) : undefined })
+    return res.status(400).json({ error: 'invalid_body', details: issues })
   }
   const created = await prisma.ticketType.create({
     data: { eventId, name: parsed.name, price: parsed.price, quantity: parsed.quantity }
@@ -49,7 +52,9 @@ router.patch('/:ticketTypeId', requireAuth, async (req: Request, res: Response) 
   try {
     data = updateTicketTypeSchema.parse(req.body)
   } catch (e: any) {
-    return res.status(400).json({ error: 'invalid_body', details: e.errors })
+    const issues = e?.issues || e?.errors || []
+    logWarn('ticket_type_update_invalid_body', { requestId: (req as any)?.requestId, issuesCount: Array.isArray(issues) ? issues.length : 0, fields: Array.isArray(issues) ? issues.map((it: any) => it?.path?.[0]).filter(Boolean) : undefined })
+    return res.status(400).json({ error: 'invalid_body', details: issues })
   }
   const updated = await prisma.ticketType.update({ where: { id: tt.id }, data })
   res.json(updated)

@@ -5,8 +5,34 @@ export async function fetchJSON<T = unknown>(url: string, init?: RequestInit): P
   const headers = new Headers(init?.headers || undefined)
   if (token) headers.set('Authorization', `Bearer ${token}`)
   const r = await fetch(url, { credentials: 'include', ...init, headers })
-  if (!r.ok) throw new Error(`http_error_${r.status}`)
+  if (!r.ok) {
+    let body: unknown = null
+    try { body = await r.json() } catch { body = null }
+    const code = (body as { error?: string })?.error || `http_error_${r.status}`
+    const err: Error & { name?: string; status?: number; code?: string; details?: unknown } = new Error(code)
+    err.name = 'HttpError'
+    err.status = r.status
+    err.code = code
+    if (body && typeof body === 'object') err.details = (body as { details?: unknown }).details
+    throw err
+  }
   return r.json() as Promise<T>
+}
+
+export function translateError(code?: string): string {
+  const c = String(code || '').trim()
+  const map: Record<string, string> = {
+    invalid_credentials: 'Credenciais inválidas',
+    email_exists: 'Email já cadastrado',
+    weak_password: 'Senha fraca: use maiúscula, minúscula e dígito',
+    invalid_body: 'Dados inválidos',
+    local_login_failed: 'Falha no login',
+    local_register_failed: 'Falha no cadastro',
+    not_found: 'Não encontrado',
+    unauthorized: 'Não autorizado',
+    forbidden: 'Acesso negado'
+  }
+  return map[c] || (c.startsWith('http_error_') ? 'Erro de rede' : (c || 'Erro desconhecido'))
 }
 
 export const api = {
