@@ -1,15 +1,22 @@
 .header {
-  height: 64px;
-  background: transparent;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
   border-radius: 0;
   margin: 0;
   box-shadow: none;
+  z-index: 40;
+  overflow: visible;
 }
 
 .container {
   width: 100%;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 5px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -19,14 +26,14 @@
 .brand {
   font-weight: 800;
   color: #111827;
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: 0.2px;
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .pill {
@@ -210,10 +217,17 @@
   border: none;
   background: #4f46e5;
   color: #ffffff;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: 12px;
   cursor: pointer;
   box-shadow: 0 10px 20px rgba(79, 70, 229, 0.35);
   font-weight: 700;
   font-size: 14px;
+}
+
+@media (max-width: 1024px) {
+  .container { padding: 0 12px; }
+  .nav { gap: 10px; }
+  .datePill { display: none; }
+  .ctaBtn { padding: 6px 10px; font-size: 13px; }
 }

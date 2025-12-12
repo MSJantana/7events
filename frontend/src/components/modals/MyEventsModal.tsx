@@ -234,7 +234,7 @@ function renderPaginationFooter(page: number, totalPages: number, onClose: () =>
   const pageItems = serverMode ? filteredSorted : filteredSorted.slice((page-1)*pageSize, (page-1)*pageSize + pageSize)
 
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
       <div className={styles.modal}>     
         <div className={styles.section}>
           

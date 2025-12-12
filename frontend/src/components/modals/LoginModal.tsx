@@ -42,7 +42,7 @@ export default function LoginModal({ open, API, buySlug, buyId, onClose, email, 
   const queryState = buyId ? ('?state=' + encodeURIComponent('buyId:' + buyId)) : (buySlug ? ('?state=' + encodeURIComponent('buy:' + buySlug)) : '')
   const googleHref = `${API}/auth/google${queryState}`
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
       <div className={styles.modal}>
         <div className={styles.header}>
           <div className={styles.title}>Que bom ter você aqui!</div>

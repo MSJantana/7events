@@ -105,6 +105,11 @@
   background: #f9fafb;
 }
 
+.invalid {
+  border-color: var(--danger) !important;
+  background: #fee2e2;
+}
+
 .inputSm {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -251,6 +256,22 @@
   font-size: 14px;
 }
 
+.priceLabel { white-space: nowrap; }
+.priceRow { justify-content: flex-start; gap: 8px; }
+
+.qtyWrap { display: inline-flex; align-items: center; gap: 6px; }
+.qtyLabel { color: var(--gray); white-space: nowrap; }
+.qtyBox {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f9fafb;
+  color: var(--text);
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
 .stepper {
   display: flex;
   align-items: center;
@@ -383,6 +404,16 @@
   border-color: var(--border);
   color: var(--gray);
 }
+
+.checkoutMethods { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px }
+.checkoutMethod {
+  display:inline-flex; align-items:center; gap:8px;
+  border:1px solid var(--border); border-radius:9999px;
+  padding:8px 12px; background:#fff; color:var(--text);
+  cursor:pointer; font-weight:700;
+}
+.checkoutMethodActive { background:#fffbeb; border-color:var(--warn); color:#92400e }
+.checkoutInfo { display:flex; align-items:center; gap:12px; margin-top:8px }
 
 /* responsivo básico pro grid */
 @media (max-width: 768px) {

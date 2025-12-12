@@ -99,7 +99,7 @@ type Props = {
 }
 
 export default function EventDetailModal({ open, loading, error, data, onClose, onBuy }: Readonly<Props>) {
-  const expired = useExpired(data?.endDate, data?.status)
+  const expired = useExpired(data?.startDate, data?.status)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -109,7 +109,7 @@ export default function EventDetailModal({ open, loading, error, data, onClose, 
   if (!open) return null
   const section = renderSection({ loading, error, data, expired, onBuy })
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
       <div className={styles.modal}>
         <div className={styles.header}>
           <div className={styles.title}>Detalhes do evento</div>

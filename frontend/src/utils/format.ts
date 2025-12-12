@@ -2,15 +2,34 @@ export function fmtMoneyBRL(n?: number) {
   try { return (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) } catch { return `R$ ${(n ?? 0).toFixed(2)}` }
 }
 
+function toLocalDateInternal(iso?: string, endOfDay = false) {
+  try {
+    const s = String(iso || '')
+    if (!s) return new Date(NaN)
+    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(s)
+    if (m) {
+      const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
+      return new Date(y, mo - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0)
+    }
+    const d = new Date(s)
+    if (!endOfDay) return d
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+  } catch { return new Date(NaN) }
+}
+
+export function toLocalDate(iso?: string, endOfDay = false) {
+  return toLocalDateInternal(iso, endOfDay)
+}
+
 export function fmtDate(iso?: string) {
   if (!iso) return ''
-  try { return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) } catch { return iso }
+  try { return toLocalDateInternal(iso).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) } catch { return iso }
 }
 
 export function fmtDateLine(iso?: string) {
   if (!iso) return ''
   try {
-    const d = new Date(iso)
+    const d = toLocalDateInternal(iso)
     const weekday = d.toLocaleDateString('pt-BR', { weekday: 'long' })
     const day = d.toLocaleDateString('pt-BR', { day: '2-digit' })
     const month = d.toLocaleDateString('pt-BR', { month: 'short' })

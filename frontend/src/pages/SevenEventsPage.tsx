@@ -8,6 +8,7 @@ import { useEventsCarousel } from '../hooks/useEventsCarousel'
 import pageStyles from './seven-events.module.css'
 import { useToast } from '../hooks/useToast'
 import { API_URL, api } from '../services/api'
+import { getEventById } from '../services/events'
 import type { EventSummary, EventDetail } from '../types'
 import AuthModal from '../components/modals/AuthModal'
 import EventDetailModal from '../components/modals/EventDetailModal'
@@ -16,6 +17,7 @@ import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
 import EditEventModal from '../components/modals/EditEventModal'
 import EventPurchaseModal from '../components/modals/EventPurchaseModal'
+import Footer from '../components/Footer'
 
 function slugify(s: string) {
   return s
@@ -39,7 +41,7 @@ export default function SevenEventsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showMyEvents, setShowMyEvents] = useState(false)
   const [showMyTickets, setShowMyTickets] = useState(false)
-  const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; endDate: string; description: string; imageUrl?: string | null } | null>(null)
+  const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string; imageUrl?: string | null } | null>(null)
   const [eventLoading, setEventLoading] = useState(false)
   const [eventError, setEventError] = useState('')
   const [eventData, setEventData] = useState<EventDetail | null>(null)
@@ -146,7 +148,7 @@ export default function SevenEventsPage() {
   }, [])
 
   return (
-    <div className={pageStyles.page}>
+    <div className={pageStyles.page} style={{ position: 'relative' }}>
       <Header
         user={user}
         onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowAuthModal(true) } }}
@@ -156,23 +158,25 @@ export default function SevenEventsPage() {
         onLogout={async () => { await logout(); setUser(null) }}
         onMakeOrder={() => { if (user) { handleMakeOrder() } else { setShowAuthModal(true) } }}
       />
-      <EventsCarousel
-        events={events}
-        activeIndex={activeIndex}
-        onSelect={(i) => setActiveIndex(() => i)}
-        onOpenEvent={(ev) => {
-          setActiveIndex(events.findIndex(e => e.id===ev.id))
-          if (ev.status === 'FINALIZED') {
-            void openDetailsById(ev.id)
-            return
-          }
-          if (user) {
-            void openPurchaseById(ev.id)
-          } else {
-            setShowAuthModal(true)
-          }
-        }}
-      />
+      <main style={{ flex: 1, overflow: 'hidden' }}>
+        <EventsCarousel
+          events={events}
+          activeIndex={activeIndex}
+          onSelect={(i) => setActiveIndex(() => i)}
+          onOpenEvent={(ev) => {
+            setActiveIndex(events.findIndex(e => e.id===ev.id))
+            if (ev.status === 'FINALIZED') {
+              void openDetailsById(ev.id)
+              return
+            }
+            if (user) {
+              void openPurchaseById(ev.id)
+            } else {
+              setShowAuthModal(true)
+            }
+          }}
+        />
+      </main>
 
       <EventDetailModal
         open={showEventModal}
@@ -199,7 +203,7 @@ export default function SevenEventsPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         user={user}
-        onCreated={async () => {
+        onCreated={async (createdId) => {
           setShowCreateModal(false)
           show({ text: 'Atualizando eventos...', kind: 'ok' })
           try {
@@ -207,12 +211,23 @@ export default function SevenEventsPage() {
             if (Array.isArray(j)) setEvents(j as EventSummary[])
           } catch { setEvents(e => e) }
           show({ text: 'Eventos atualizados', kind: 'ok' })
+          if (createdId && user) {
+            try {
+              const detail = await getEventById(createdId)
+              const hasAvailable = (detail.ticketTypes || []).some(tt => Number(tt.quantity || 0) > 0)
+              if (hasAvailable) {
+                await openPurchaseById(createdId)
+              } else {
+                await openDetailsById(createdId)
+              }
+            } catch { show({ text: 'Falha ao carregar evento', kind: 'err' }) }
+          }
         }}
       />
       <MyEventsModal
         open={showMyEvents}
         onClose={() => setShowMyEvents(false)}
-        onEdit={(ev) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', endDate: '', description: '', imageUrl: ev.imageUrl || null }); setShowMyEvents(false) }}
+        onEdit={(ev) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', description: '', imageUrl: ev.imageUrl || null }); setShowMyEvents(false) }}
         onPublished={async () => {
           show({ text: 'Atualizando eventos...', kind: 'ok' })
           try {
@@ -247,6 +262,7 @@ export default function SevenEventsPage() {
         onSelectTT={(id)=> setSelectedTT(id)}
         onChangeQty={(n)=> setQty(n)}
       />
+      <Footer />
     </div>
   )
 }

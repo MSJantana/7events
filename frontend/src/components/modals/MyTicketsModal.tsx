@@ -43,12 +43,8 @@ export default function MyTicketsModal({ open, onClose }: Readonly<{ open: boole
 
   if (!open) return null
   return (
-    <div className={styles.overlay}>
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          {/* <div className={styles.title}>Meus ingressos</div> */}
-          <button className={styles.close} onClick={onClose}><span className="mi">close</span></button>
-        </div>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
+      <div className={styles.modal}>     
         <div className={styles.section}>
           {orders.length === 0 ? (
             notice('info', 'Nenhum pedido encontrado')

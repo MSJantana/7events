@@ -14,6 +14,7 @@ import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
 import EditEventModal from '../components/modals/EditEventModal'
 import Header from '../components/Header'
+import Footer from '../components/Footer'
 import type { EventSummary, EventDetail, User } from '../types'
 
  
@@ -50,7 +51,7 @@ export default function Login() {
   const [user, setUser] = useState<User | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showMyEvents, setShowMyEvents] = useState(false)
-  const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; endDate: string; description: string } | null>(null)
+  const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string } | null>(null)
   const [showMyTickets, setShowMyTickets] = useState(false)
   const [events, setEvents] = useState<Array<{ id: string; title: string; description?: string; location: string; startDate: string; endDate: string; status: 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'; imageUrl?: string | null }>>([])
   const [activeIndex, setActiveIndex] = useState(0)
@@ -169,7 +170,7 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: palette.bg, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', minHeight: '100vh', background: palette.bg, display: 'flex', flexDirection: 'column', position: 'relative', boxSizing: 'border-box', paddingTop: 56, overflow: 'hidden' }}>
       <Header
         user={user}
         onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowModal(true); setShowEmailForm(false) } }}
@@ -204,8 +205,8 @@ export default function Login() {
         }}
       />
 
-      <section style={{ position: 'relative', padding: '32px 0', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ width:'100%', margin:'0 auto', padding:'0 32px' }}>
+      <section style={{ position: 'relative', padding: '32px 0', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <div style={{ width:'100%', height:'100%', margin:'0 auto', padding:'0 32px', overflow:'hidden' }}>
           <div style={{ width: '100%', display: 'flex', gap: 14, flexWrap:'wrap' }}>
           </div>
           {refreshing && null}
@@ -336,12 +337,42 @@ export default function Login() {
         onClose={() => setShowDetailsModal(false)}
       />
 
-      <CreateEventModal open={showCreateModal} onClose={() => setShowCreateModal(false)} user={user} onCreated={async () => { await reloadEvents(); setShowCreateModal(false) }} />
+      <CreateEventModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        user={user}
+        onCreated={async (createdId) => {
+          await reloadEvents()
+          setShowCreateModal(false)
+          if (createdId && user) {
+            try {
+              setEventLoading(true)
+              setEventError('')
+              setEventData(null)
+              const r = await fetch(`${API}/events/${createdId}`, { credentials: 'include' })
+              if (!r.ok) throw new Error('not_found')
+              const j: EventDetail = await r.json()
+              const hasAvailable = (j.ticketTypes || []).some(tt => Number(tt.quantity || 0) > 0)
+              if (hasAvailable) {
+                setEventData(j)
+                setShowEventModal(true)
+                const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
+                setSelectedTT(firstAvailable?.id || '')
+                setQty(1)
+              } else {
+                setEventData(j)
+                setShowDetailsModal(true)
+              }
+            } catch { /* ignore */ }
+            finally { setEventLoading(false) }
+          }
+        }}
+      />
 
       <MyEventsModal
         open={showMyEvents}
         onClose={() => setShowMyEvents(false)}
-        onEdit={(ev: EventSummary) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', endDate: '', description: '' }) }}
+        onEdit={(ev: EventSummary) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', description: '' }) }}
         onPublished={reloadEvents}
       />
 
@@ -357,6 +388,7 @@ export default function Login() {
           setEvents(list => list.map(e => e.id === p.id ? { ...e, imageUrl: p.imageUrl || e.imageUrl } : e))
         }}
       />
+      <Footer />
     </div>
   )
 }

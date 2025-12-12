@@ -8,12 +8,9 @@ export default function ContinueButton(p: Readonly<{ disabled: boolean; dataId?:
     <button className={`${styles.btn} ${styles.primary}`} onClick={async () => {
       if (!p.dataId || !p.selectedTT) { p.setFlowStatus({ text: 'Selecione um ingresso', kind: 'err' }); return }
       try {
-        const id = await p.onCreateOrder(p.dataId, p.selectedTT, p.qty, p.maxQty)
-        p.setOrderId(String(id || ''))
-        p.setFlowStatus({ text: 'Pedido criado', kind: 'ok' })
+        p.setFlowStatus({ text: 'Escolha a forma de pagamento', kind: '' })
         p.setStep(2)
-      } catch { p.setFlowStatus({ text: 'Falha ao comprar', kind: 'err' }) }
+      } catch { p.setFlowStatus({ text: 'Falha ao continuar', kind: 'err' }) }
     }} disabled={p.disabled}>Continuar</button>
   )
 }
-

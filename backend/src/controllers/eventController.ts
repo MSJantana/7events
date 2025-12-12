@@ -43,7 +43,9 @@ export const eventController = {
     if (!found) return res.status(404).json({ error: 'not_found' })
     try {
       const now = new Date()
-      if (new Date(found.endDate).getTime() <= now.getTime() && found.status !== 'FINALIZED') {
+      const e = new Date(found.endDate)
+      const eod = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999)
+      if (eod.getTime() <= now.getTime() && found.status !== 'FINALIZED') {
         const upd = await eventService.updateEvent(found.id, { status: 'FINALIZED' } as any)
         Object.assign(found, { status: upd.status })
       }
@@ -68,10 +70,19 @@ export const eventController = {
   async create(req: AuthedRequest, res: Response) {
     try {
       const body = createEventSchema.parse(req.body)
+      const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(body.startDate))
+      const y = Number(m?.[1] || 0); const mo = Number(m?.[2] || 0); const d = Number(m?.[3] || 0)
+      let hh = 0, mm = 0
+      if (typeof body.startTime === 'string') {
+        const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
+        if (tm) { hh = Number(tm[1] || 0); mm = Number(tm[2] || 0) }
+      }
+      const start = new Date(y, mo - 1, d, hh, mm, 0, 0)
+      const end = new Date(y, mo - 1, d, 23, 59, 59, 999)
       const event = await eventService.createEvent({
         ...body,
-        startDate: new Date(body.startDate),
-        endDate: new Date(body.endDate),
+        startDate: start,
+        endDate: end,
         userId: req.user.sub
       } as any)
       res.status(201).json(event)
@@ -91,8 +102,31 @@ export const eventController = {
     try {
       const body = updateEventSchema.parse(req.body)
       const data: any = { ...body }
-      if (data.startDate) data.startDate = new Date(data.startDate)
-      if (data.endDate) data.endDate = new Date(data.endDate)
+      if (data.startDate) {
+        const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(data.startDate))
+        const y = Number(m?.[1] || 0); const mo = Number(m?.[2] || 0); const d = Number(m?.[3] || 0)
+        let hh = 0, mm = 0
+        if (typeof body.startTime === 'string') {
+          const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
+          if (tm) { hh = Number(tm[1] || 0); mm = Number(tm[2] || 0) }
+        }
+        data.startDate = new Date(y, mo - 1, d, hh, mm, 0, 0)
+        data.endDate = new Date(y, mo - 1, d, 23, 59, 59, 999)
+      } else if (typeof body.startTime === 'string') {
+        const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
+        if (tm) {
+          const hh = Number(tm[1] || 0), mm = Number(tm[2] || 0)
+          const prev = new Date(existing.startDate)
+          data.startDate = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate(), hh, mm, 0, 0)
+        }
+      }
+
+      const finalStart = data.startDate ? new Date(data.startDate) : new Date(existing.startDate)
+      const finalEnd = data.endDate ? new Date(data.endDate) : new Date(existing.endDate)
+      if (finalStart.getTime() > finalEnd.getTime()) {
+        const details = [{ path: ['startDate'], message: 'start_after_end' }]
+        return res.status(400).json({ error: 'invalid_body', details })
+      }
 
       const updated = await eventService.updateEvent(id, data)
       res.json(updated)

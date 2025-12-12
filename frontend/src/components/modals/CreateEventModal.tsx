@@ -45,7 +45,53 @@ function StepperUI(s: StepId) {
 }
 type TicketItem = { id: string; name: string; paid: boolean; price: string; quantity: string }
 function makeTempId() { return 'tt-' + Math.random().toString(36).slice(2) + Date.now().toString(36) }
-function Step1Section(p: Readonly<{ preview: string | null; hint: string; title: string; description: string; location: string; startDate: string; endDate: string; capacity: string; onTitleChange: (v: string) => void; onDescriptionChange: (v: string) => void; onLocationChange: (v: string) => void; onStartDateChange: (v: string) => void; onEndDateChange: (v: string) => void; onCapacityChange: (v: string) => void; handleImageChange: (e: ChangeEvent<HTMLInputElement>) => void; loading: boolean; user: User | null; onClose: () => void; onSubmit: () => void }>): ReactNode {
+function parseCurrencyBR(text: string) {
+  const digits = String(text || '').replaceAll(/\D/g, '')
+  const n = digits ? Number(digits) : 0
+  const v = (n / 100).toFixed(2)
+  return v
+}
+function formatCurrencyBR(value: string) {
+  const n = Number(value || 0)
+  const cents = Math.round(n * 100)
+  const s = String(Math.max(0, cents))
+  const int = s.slice(0, -2) || '0'
+  const dec = s.slice(-2).padStart(2, '0')
+  const intDots = int.replaceAll(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `${intDots},${dec}`
+}
+function parseYMD(s: string) {
+  const parts = String(s || '').split('-')
+  const y = Number(parts[0] || 0)
+  const m = Number(parts[1] || 0)
+  const d = Number(parts[2] || 0)
+  return { y, m, d }
+}
+function todayYMD() {
+  const t = new Date()
+  const y = t.getFullYear()
+  const m = String(t.getMonth() + 1).padStart(2, '0')
+  const d = String(t.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+function validateStartDateNotInPast(start: string): string | null {
+  const s = start || todayYMD()
+  const a = parseYMD(s)
+  const startDate = new Date(a.y, a.m - 1, a.d)
+  const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (startDate.getTime() < today.getTime()) return 'Data de início não pode ser inferior à data atual'
+  return null
+}
+function Step1Section(p: Readonly<{ preview: string | null; hint: string; title: string; description: string; location: string; startDate: string; startTime: string; capacity: string; onTitleChange: (v: string) => void; onDescriptionChange: (v: string) => void; onLocationChange: (v: string) => void; onStartDateChange: (v: string) => void; onStartTimeChange: (v: string) => void; onCapacityChange: (v: string) => void; handleImageChange: (e: ChangeEvent<HTMLInputElement>) => void; loading: boolean; user: User | null; onClose: () => void; onSubmit: () => void }>): ReactNode {
+  const dateErr = validateStartDateNotInPast(p.startDate)
+  const titleInvalid = String(p.title || '').trim() === ''
+  const descriptionInvalid = String(p.description || '').trim() === ''
+  const locationInvalid = String(p.location || '').trim() === ''
+  const startInvalid = String(p.startDate || '').trim() === ''
+  const timeInvalid = !/^\d{2}:\d{2}$/.test(String(p.startTime||''))
+  const endInvalid = false
+  const capacityInvalid = !Number(p.capacity || 0) || Number(p.capacity) <= 0
+  const filled = !(titleInvalid || descriptionInvalid || locationInvalid || startInvalid || endInvalid || capacityInvalid)
   return (
     <>
       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -57,51 +103,47 @@ function Step1Section(p: Readonly<{ preview: string | null; hint: string; title:
         <input type="file" accept="image/*" onChange={p.handleImageChange} />
       </div>
       <div style={{ fontSize:12, color:'#6b7280', marginTop:6 }}>{p.hint}</div>
-      <div className={styles.field}><label htmlFor="title" className={styles.label}>Título</label><input id="title" className={styles.input} value={p.title} onChange={e=>p.onTitleChange(e.target.value)} /></div>
-      <div className={styles.field}><label htmlFor="description" className={styles.label}>Descrição</label><textarea id="description" className={styles.input} value={p.description} onChange={e=>p.onDescriptionChange(e.target.value)} /></div>
-      <div className={styles.field}><label htmlFor="location" className={styles.label}>Local</label><input id="location" className={styles.input} value={p.location} onChange={e=>p.onLocationChange(e.target.value)} /></div>
+      <div className={styles.field}><label htmlFor="title" className={styles.label}>Título</label><input id="title" className={`${styles.input} ${titleInvalid ? styles.invalid : ''}`} value={p.title} onChange={e=>p.onTitleChange(e.target.value)} /></div>
+      <div className={styles.field}><label htmlFor="description" className={styles.label}>Descrição</label><textarea id="description" className={`${styles.input} ${descriptionInvalid ? styles.invalid : ''}`} value={p.description} onChange={e=>p.onDescriptionChange(e.target.value)} /></div>
+      <div className={styles.field}><label htmlFor="location" className={styles.label}>Local</label><input id="location" className={`${styles.input} ${locationInvalid ? styles.invalid : ''}`} value={p.location} onChange={e=>p.onLocationChange(e.target.value)} /></div>
       <div className={styles.row}>
-        <div className={`${styles.field} ${styles.col}`}><label htmlFor="startDate" className={styles.label}>Início</label><input id="startDate" className={styles.inputSm} type="date" placeholder="dd/mm/aaaa" value={p.startDate} onChange={e=>p.onStartDateChange(e.target.value)} /></div>
-        <div className={`${styles.field} ${styles.col}`}><label htmlFor="endDate" className={styles.label}>Fim</label><input id="endDate" className={styles.inputSm} type="date" placeholder="dd/mm/aaaa" value={p.endDate} onChange={e=>p.onEndDateChange(e.target.value)} /></div>
-        <div className={styles.field} style={{ flex:'0 0 120px' }}><label htmlFor="capacity" className={styles.label}>Capacidade</label><input id="capacity" className={styles.inputSm} type="number" min={0} placeholder="0" value={p.capacity} onChange={e=>p.onCapacityChange(e.target.value)} /></div>
+        <div className={`${styles.field} ${styles.col}`}><label htmlFor="startDate" className={styles.label}>Início</label><input id="startDate" className={`${styles.inputSm} ${startInvalid ? styles.invalid : ''}`} type="date" placeholder="dd/mm/aaaa" value={p.startDate} onChange={e=>p.onStartDateChange(e.target.value)} /></div>
+        <div className={styles.field} style={{ flex:'0 0 120px' }}><label htmlFor="startTime" className={styles.label}>Hora</label><input id="startTime" className={`${styles.inputSm} ${timeInvalid ? styles.invalid : ''}`} type="time" value={p.startTime} onChange={e=>p.onStartTimeChange(e.target.value)} /></div>
+        <div className={styles.field} style={{ flex:'0 0 120px' }}><label htmlFor="capacity" className={styles.label}>Capacidade</label><input id="capacity" className={`${styles.inputSm} ${capacityInvalid ? styles.invalid : ''}`} type="number" min={0} placeholder="0" value={p.capacity} onChange={e=>p.onCapacityChange(e.target.value)} /></div>
       </div>
       <div className={styles.actions}>
         <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onClose}>Cancelar</button>
-        <button disabled={p.loading || !p.user} className={`${styles.btn} ${styles.primary}`} onClick={p.onSubmit}>{p.loading ? 'Criando...' : 'Continuar'}</button>
+        {dateErr ? <div className={`${styles.notice} ${styles.noticeErr}`} style={{ marginRight:'auto' }}>{dateErr}</div> : null}
+        <button disabled={p.loading || !p.user || !!dateErr || !filled} className={`${styles.btn} ${styles.primary}`} onClick={p.onSubmit}>{p.loading ? 'Criando...' : 'Continuar'}</button>
       </div>
     </>
   )
 }
-function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number, paid: boolean) => void; onChangeQty: (i: number, qty: string) => void; onChangePrice: (i: number, price: string) => void; onRemove: (i: number) => void; onAdd: () => void; onBack: () => void; onNext: () => void }>): ReactNode {
+function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number, paid: boolean) => void; onChangePrice: (i: number, price: string) => void; onBack: () => void; onNext: () => void }>): ReactNode {
   return (
     <>
       <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:8 }}>
         <div className={styles.sectionTitle}><span aria-hidden>🎟️</span><span>Ingressos</span></div>
         {p.tts.map((t, i) => (
           <div key={t.id} className={styles.item}>
-            <div style={{ display:'grid', gridTemplateColumns:'140px 120px 1fr auto', gap:10, alignItems:'center', width:'100%' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'140px 1fr 260px', gap:6, alignItems:'center', width:'100%' }}>
               <select value={t.paid ? 'paid' : 'free'} onChange={e=>p.onChangePaid(i, e.target.value==='paid')} className={styles.inputSm}>
                 <option value="free">Grátis</option>
                 <option value="paid">Pago</option>
               </select>
-              <select value={t.quantity} onChange={e=>p.onChangeQty(i, e.target.value)} className={styles.inputSm}>
-                {Array.from({ length: 50 }).map((_, q)=> (
-                  <option key={q+1} value={String(q+1)}>{q+1}</option>
-                ))}
-              </select>
+              <div className={styles.qtyWrap}>
+                <span className={styles.qtyLabel}>Quantidade</span>
+                <span className={styles.qtyBox}>{t.quantity}</span>
+              </div>
               {t.paid ? (
-                <div className={styles.summaryRow}>
-                  <span>Valor unitário</span>
-                  <input placeholder="R$ 0,00" type="number" min={0} step="0.01" value={t.price} onChange={e=>p.onChangePrice(i, e.target.value)} className={styles.inputSm} style={{ width:140 }} />
+                <div className={`${styles.summaryRow} ${styles.priceRow}`}>
+                  <span className={styles.priceLabel}>Valor unitário</span>
+                  <input placeholder="R$ 0,00" type="text" inputMode="decimal" value={formatCurrencyBR(t.price)} onChange={e=>p.onChangePrice(i, parseCurrencyBR(e.target.value))} className={styles.inputSm} style={{ width:220 }} />
                 </div>
               ) : <div />}
-              <button type="button" className={`${styles.btn} ${styles.danger}`} onClick={()=>p.onRemove(i)}>Remover</button>
             </div>
           </div>
         ))}
-        <div>
-          <button type="button" className={`${styles.btn} ${styles.ghost}`} onClick={p.onAdd}>Adicionar ingresso</button>
-        </div>
       </div>
       <div className={styles.actions}>
         <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onBack}>Voltar</button>
@@ -159,7 +201,7 @@ function eventCreateErrorText(e: unknown) {
   if (code === 'invalid_capacity') return 'Capacidade inválida'
   if (details.length > 0) {
     const msgs = details.map((it) => {
-      const field = String((it?.path?.[0] as string | number | undefined) || '')
+      const field = String(it?.path?.[0] || '')
       switch (field) {
         case 'title': return 'Campo título é obrigatório (mín 3)'
         case 'description': return 'Campo descrição é obrigatório (mín 10)'
@@ -186,7 +228,7 @@ function ticketTypeCreateErrorText(e: unknown) {
   if (code === 'event_not_found') return 'Evento não encontrado'
   if (details.length > 0) {
     const msgs = details.map((it) => {
-      const field = String((it?.path?.[0] as string | number | undefined) || '')
+      const field = String(it?.path?.[0] || '')
       switch (field) {
         case 'name': return 'Nome do ingresso é obrigatório'
         case 'price': return 'Preço deve ser maior ou igual a 0'
@@ -213,7 +255,7 @@ type Props = { open: boolean; onClose: () => void; user: User | null; onCreated?
 
 export default function CreateEventModal({ open, onClose, user, onCreated }: Readonly<Props>) {
   const { show } = useToast()
-  const [form, setForm] = useState({ title: '', description: '', location: '', startDate: '', endDate: '', capacity: '0' })
+  const [form, setForm] = useState({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', capacity: '0' })
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -242,6 +284,16 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     globalThis.addEventListener('keydown', onKey)
     return () => globalThis.removeEventListener('keydown', onKey)
   }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+    if (step !== 2) return
+    setTts(list => {
+      const qty = String(Number(form.capacity || 0))
+      const first = list[0] ? { ...list[0], quantity: qty } : { id: makeTempId(), name:'', paid:false, price:'0', quantity: qty }
+      return [first]
+    })
+  }, [open, step, form.capacity])
 
   if (!open) return null
 
@@ -280,7 +332,9 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
   async function onSubmit() {
     setLoading(true)
     try {
-      const payload = { ...form, capacity: Number(form.capacity || 0) }
+      const err = validateStartDateNotInPast(form.startDate)
+      if (err) { show({ text: err, kind: 'err' }); setLoading(false); return }
+      const payload = { title: form.title, description: form.description, location: form.location, startDate: form.startDate, startTime: form.startTime, capacity: Number(form.capacity || 0) }
       const r = await createEvent(payload)
       const id = String(r?.id || '')
       setCreatedEventId(id)
@@ -325,7 +379,21 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
 
   async function onFinalizeAndPublish() {
     if (!createdEventId) { show({ text: 'Evento não criado', kind: 'err' }); return }
-    await onFinalize()
+    if (!ticketsSaved && Array.isArray(tts) && tts.length > 0) {
+      setLoading(true)
+      try {
+        const payloads = tts.map((t, i) => {
+          const name = String(t.name || '').trim()
+          const qty = Number(t.quantity || 0)
+          const price = t.paid ? Number(t.price || 0) : 0
+          if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) return null
+          const finalName = name || (t.paid ? `Ingresso Pago ${i+1}` : `Ingresso Grátis ${i+1}`)
+          return { name: finalName, price, quantity: qty }
+        }).filter(Boolean) as Array<{ name: string; price: number; quantity: number }>
+        for (const p of payloads) { try { await createTicketType(createdEventId, p) } catch (e: unknown) { const msg = ticketTypeCreateErrorText(e); show({ text: msg, kind: 'err' }) } }
+        setTicketsSaved(true)
+      } finally { setLoading(false) }
+    }
     try {
       await publishEvent(createdEventId)
       show({ text: 'Evento publicado', kind: 'ok' })
@@ -333,6 +401,8 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       const msg = publishErrorText(e)
       show({ text: msg, kind: 'err' })
     }
+    onCreated?.(createdEventId)
+    onClose()
   }
 
   let section: ReactNode = null
@@ -344,13 +414,15 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       description: form.description,
       location: form.location,
       startDate: form.startDate,
-      endDate: form.endDate,
+      startTime: form.startTime,
+      
       capacity: form.capacity,
       onTitleChange: (v)=>setForm(f=>({ ...f, title: v })),
       onDescriptionChange: (v)=>setForm(f=>({ ...f, description: v })),
       onLocationChange: (v)=>setForm(f=>({ ...f, location: v })),
       onStartDateChange: (v)=>setForm(f=>({ ...f, startDate: v })),
-      onEndDateChange: (v)=>setForm(f=>({ ...f, endDate: v })),
+      onStartTimeChange: (v)=>setForm(f=>({ ...f, startTime: v })),
+      
       onCapacityChange: (v)=>setForm(f=>({ ...f, capacity: v })),
       handleImageChange,
       loading,
@@ -367,10 +439,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
         if (!paid) copy[i].price = '0'
         return copy
       }),
-      onChangeQty: (i, qty)=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], quantity: qty }; return copy }),
       onChangePrice: (i, price)=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], price }; return copy }),
-      onRemove: (i)=>setTts(list=>list.filter((_, idx)=> idx!==i)),
-      onAdd: ()=>setTts(list=>[...list, { id: makeTempId(), name:'', paid:false, price:'0', quantity:'1' }]),
       onBack: ()=>setStep(1),
       onNext: ()=>setStep(3),
     })
@@ -385,7 +454,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     })
   }
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
       <div className={styles.modal}>      
         {StepperUI(step)}
         <div className={styles.section}>

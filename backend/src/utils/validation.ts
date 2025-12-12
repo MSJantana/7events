@@ -3,21 +3,38 @@ import { z } from 'zod'
 export const createEventSchema = z.object({
   title: z.string().min(3),
   description: z.string().min(10),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   location: z.string().min(3),
   capacity: z.number().int().positive(),
   imageUrl: z.string().trim().refine((v) => { try { new URL(v); return true } catch { return false } }, { message: 'invalid_url' }).optional()
+}).superRefine((v, ctx) => {
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(v.startDate))
+  if (!m) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid_date_format', path: ['startDate'] }); return }
+  const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
+  const s = new Date(y, mo - 1, d, 0, 0, 0, 0)
+  const startOfToday = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0) })()
+  if (s.getTime() < startOfToday.getTime()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'start_in_past', path: ['startDate'] })
 })
 
 export const updateEventSchema = z.object({
   title: z.string().min(3).optional(),
   description: z.string().min(10).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   location: z.string().min(3).optional()
-}).refine((v) => v.title !== undefined || v.description !== undefined || v.startDate !== undefined || v.endDate !== undefined || v.location !== undefined, {
-  message: 'no_fields'
+}).superRefine((v, ctx) => {
+  if (v.title === undefined && v.description === undefined && v.startDate === undefined && v.location === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'no_fields' })
+  }
+  const startOfToday = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0) })()
+  if (v.startDate !== undefined) {
+    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(v.startDate))
+    if (!m) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid_date_format', path: ['startDate'] }); return }
+    const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
+    const s = new Date(y, mo - 1, d, 0, 0, 0, 0)
+    if (s.getTime() < startOfToday.getTime()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'start_in_past', path: ['startDate'] })
+  }
 })
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i

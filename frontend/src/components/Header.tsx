@@ -1,5 +1,5 @@
 import type { User } from '../types'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import styles from './header.module.css'
 
 type Props = Readonly<{
@@ -22,6 +22,16 @@ export default function Header({
   onMakeOrder,
 }: Props) {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const profileRef = useRef<HTMLDivElement|null>(null)
+  useEffect(() => {
+    if (!showProfileMenu) return
+    const onDown = (e: PointerEvent) => {
+      const el = profileRef.current
+      if (el && !el.contains(e.target as Node)) setShowProfileMenu(false)
+    }
+    globalThis.addEventListener('pointerdown', onDown)
+    return () => globalThis.removeEventListener('pointerdown', onDown)
+  }, [showProfileMenu])
 
   const now = new Date()
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -119,7 +129,7 @@ export default function Header({
             Comprar Ingresso
           </button>
 
-          <div className={styles.profileWrap}>
+          <div className={styles.profileWrap} ref={profileRef}>
             <button
               type="button"
               onClick={handleProfileClick}

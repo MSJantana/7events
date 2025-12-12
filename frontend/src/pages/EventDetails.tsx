@@ -86,7 +86,7 @@ export default function EventDetails() {
   }, [API, slug])
 
 
-  const expired = useExpired(data?.endDate, data?.status)
+  const expired = useExpired(data?.startDate, data?.status)
   const hasTT = hasTicketTypes(data)
   const canBuy = canBuyTickets(data, expired)
   const soldOut = soldOutTickets(data, expired, hasTT)
@@ -125,7 +125,7 @@ export default function EventDetails() {
         <button onClick={() => navigate(-1)} style={{ border: 'none', background: 'transparent', color: '#2563eb', fontWeight: 700, cursor: 'pointer' }}>← Voltar</button>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <h1 style={{ fontSize: 28, margin: '12px 0', color: '#111827' }}>{title}</h1>
-          <FinalizadoBadge endDate={data?.endDate} />
+          <FinalizadoBadge startDate={data?.startDate} />
         </div>
         {content}
       </div>

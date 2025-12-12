@@ -3,10 +3,10 @@ import type { EventStatus } from '../types'
 import type { CSSProperties } from 'react'
 import { useExpired } from '../hooks/useExpired'
 
-type Props = { endDate?: string; status?: EventStatus; style?: CSSProperties; className?: string }
+type Props = { startDate?: string; status?: EventStatus; style?: CSSProperties; className?: string }
 
-export default function FinalizadoBadge({ endDate, status, style, className }: Props) {
-  const expired = useExpired(endDate, status)
+export default function FinalizadoBadge({ startDate, status, style, className }: Props) {
+  const expired = useExpired(startDate, status)
   if (!expired) return null
   return (
     <span

@@ -117,7 +117,7 @@ export default function AuthModal({ open, onClose, onLoggedIn }: Readonly<Props>
   }
 
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
       <div className={styles.modal}>
         <div className={styles.header}>
           <div className={styles.title}>Entrar</div>
