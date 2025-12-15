@@ -8,7 +8,6 @@ import LoginModal from '../components/modals/LoginModal'
 import { isValidEmail, isStrongPassword } from '../utils/validation'
 import { translateError } from '../services/api'
 import EventPurchaseModal from '../components/modals/EventPurchaseModal'
-import EventDetailModal from '../components/modals/EventDetailModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
 import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
@@ -24,7 +23,7 @@ import type { EventSummary, EventDetail, User } from '../types'
 export default function Login() {
   const API = useMemo(() => (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000', [])
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const buySlug = searchParams.get('buy') || ''
   const buyId = searchParams.get('buyId') || ''
   
@@ -40,7 +39,6 @@ export default function Login() {
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [showRegister, setShowRegister] = useState(false)
   const [showEventModal, setShowEventModal] = useState(false)
-  const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [eventLoading, setEventLoading] = useState(false)
   const [eventError, setEventError] = useState('')
   const [eventData, setEventData] = useState<EventDetail | null>(null)
@@ -97,14 +95,9 @@ export default function Login() {
         }
         const j: EventDetail = await r.json()
         setEventData(j)
-        if (j.status === 'FINALIZED') {
-          setShowDetailsModal(true)
-          setShowEventModal(false)
-        } else {
-          setShowEventModal(true)
-          const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
-          setSelectedTT(firstAvailable?.id || '')
-        }
+        setShowEventModal(true)
+        const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
+        setSelectedTT(firstAvailable?.id || '')
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Falha ao carregar'
         setEventError(msg)
@@ -121,14 +114,9 @@ export default function Login() {
         if (!r.ok) throw new Error('not_found')
         const j: EventDetail = await r.json()
         setEventData(j)
-        if (j.status === 'FINALIZED') {
-          setShowDetailsModal(true)
-          setShowEventModal(false)
-        } else {
-          setShowEventModal(true)
-          const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
-          setSelectedTT(firstAvailable?.id || '')
-        }
+        setShowEventModal(true)
+        const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
+        setSelectedTT(firstAvailable?.id || '')
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Falha ao carregar'
         setEventError(msg)
@@ -138,7 +126,7 @@ export default function Login() {
     }
     const param = buyId || buySlug
     if (!param) return
-    if (!user) { setShowModal(true); setShowEmailForm(false) }
+    if (!user) { setShowModal(true); setShowEmailForm(false); return }
     if (buyId) openById(buyId)
     else openBySlug(buySlug)
   }, [API, buySlug, buyId, user])
@@ -180,7 +168,15 @@ export default function Login() {
         onLogout={async () => { try { await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' }); setUser(null); show({ text:'Sessão encerrada', kind:'ok' }) } catch { show({ text:'Falha ao sair', kind:'err' }) } }}
         onMakeOrder={() => {
           const active = events[activeIndex]
-          if (!active) { if (!user) { setShowModal(true) } ; return }
+          if (!active) { if (!user) { setShowModal(true); setShowEmailForm(false) } ; return }
+          if (!user) {
+            setShowModal(true)
+            setShowEmailForm(false)
+            const next = new URLSearchParams(searchParams)
+            next.set('buyId', active.id)
+            setSearchParams(next)
+            return
+          }
           const slug = active.title
             .toLowerCase()
             .normalize('NFD')
@@ -218,10 +214,14 @@ export default function Login() {
               if (!user) {
                 setShowModal(true)
                 setShowEmailForm(false)
-                navigate(`/?buyId=${encodeURIComponent(ev.id)}`)
+                const next = new URLSearchParams(searchParams)
+                next.set('buyId', ev.id)
+                setSearchParams(next)
                 return
               }
-              navigate(`/?buyId=${encodeURIComponent(ev.id)}`)
+              const next = new URLSearchParams(searchParams)
+              next.set('buyId', ev.id)
+              setSearchParams(next)
             }}
           />
         </div>
@@ -329,13 +329,7 @@ export default function Login() {
         onChangeQty={(n)=> setQty(n)}
       />
 
-      <EventDetailModal
-        open={showDetailsModal}
-        loading={eventLoading}
-        error={eventError}
-        data={eventData}
-        onClose={() => setShowDetailsModal(false)}
-      />
+      {/* removido EventDetailModal */}
 
       <CreateEventModal
         open={showCreateModal}
@@ -352,17 +346,11 @@ export default function Login() {
               const r = await fetch(`${API}/events/${createdId}`, { credentials: 'include' })
               if (!r.ok) throw new Error('not_found')
               const j: EventDetail = await r.json()
-              const hasAvailable = (j.ticketTypes || []).some(tt => Number(tt.quantity || 0) > 0)
-              if (hasAvailable) {
-                setEventData(j)
-                setShowEventModal(true)
-                const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
-                setSelectedTT(firstAvailable?.id || '')
-                setQty(1)
-              } else {
-                setEventData(j)
-                setShowDetailsModal(true)
-              }
+              setEventData(j)
+              setShowEventModal(true)
+              const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
+              setSelectedTT(firstAvailable?.id || '')
+              setQty(1)
             } catch { /* ignore */ }
             finally { setEventLoading(false) }
           }

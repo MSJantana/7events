@@ -152,12 +152,12 @@ function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number,
     </>
   )
 }
-function Step3Section(p: Readonly<{ tts: TicketItem[]; loading: boolean; user: User | null; onBack: () => void; onFinalize: () => void; onFinalizeAndPublish: () => void }>): ReactNode {
+function Step3Section(p: Readonly<{ tts: TicketItem[]; loading: boolean; user: User | null; onBack: () => void; onFinalizeAndPublish: () => void }>): ReactNode {
   return (
     <>
       <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
         <div style={{ fontSize:16, fontWeight:800, color:'#111827' }}>Resumo</div>
-        <div style={{ color:'#6b7280' }}>Evento criado. Finalize para salvar os ingressos.</div>
+        <div style={{ color:'#6b7280' }}>Este evento só será criado e publicado ao clicar em “Finalizar e publicar”.</div>
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {p.tts.map((t) => (
             <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -170,7 +170,6 @@ function Step3Section(p: Readonly<{ tts: TicketItem[]; loading: boolean; user: U
       </div>
       <div className={styles.actions} style={{ marginTop:8 }}>
         <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onBack}>Voltar</button>
-        <button disabled={p.loading || !p.user} className={`${styles.btn} ${styles.primary}`} onClick={p.onFinalize}>{p.loading ? 'Salvando...' : 'Finalizar'}</button>
         <button disabled={p.loading || !p.user} className={`${styles.btn} ${styles.primary}`} onClick={p.onFinalizeAndPublish}>{p.loading ? '...' : 'Finalizar e publicar'}</button>
       </div>
     </>
@@ -241,12 +240,6 @@ function ticketTypeCreateErrorText(e: unknown) {
   }
   return 'Falha ao criar ingresso'
 }
-function publishErrorText(e: unknown) {
-  const obj = (e ?? {}) as Record<string, unknown>
-  const code = String((obj['code'] as string) || (obj['message'] as string) || '')
-  if (code === 'invalid_capacity') return 'Capacidade inválida para publicar'
-  return 'Falha ao publicar evento'
-}
 import { createEvent, uploadEventImage, createTicketType, publishEvent } from '../../services/events'
 import { useToast } from '../../hooks/useToast'
 import { api } from '../../services/api'
@@ -263,7 +256,6 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
   const [tts, setTts] = useState<Array<TicketItem>>([])
   const [step, setStep] = useState<StepId>(1)
   const [createdEventId, setCreatedEventId] = useState<string>('')
-  const [ticketsSaved, setTicketsSaved] = useState(false)
   const totalQty = tts.reduce((s, t) => s + (Number(t.quantity || 0) || 0), 0)
   const totalRevenue = tts.reduce((s, t) => {
     const q = Number(t.quantity || 0) || 0
@@ -333,7 +325,15 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     setLoading(true)
     try {
       const err = validateStartDateNotInPast(form.startDate)
-      if (err) { show({ text: err, kind: 'err' }); setLoading(false); return }
+      if (err) { show({ text: err, kind: 'err' }); return }
+      setStep(2)
+    } finally { setLoading(false) }
+  }
+
+
+  async function onFinalizeAndPublish() {
+    setLoading(true)
+    try {
       const payload = { title: form.title, description: form.description, location: form.location, startDate: form.startDate, startTime: form.startTime, capacity: Number(form.capacity || 0) }
       const r = await createEvent(payload)
       const id = String(r?.id || '')
@@ -346,17 +346,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
           show({ text: msg, kind: 'err' })
         }
       }
-      show({ text: 'Evento criado', kind: 'ok' })
-      setStep(2)
-    } catch (e: unknown) { const msg = eventCreateErrorText(e); show({ text: msg, kind: 'err' }) }
-    finally { setLoading(false) }
-  }
-
-  async function onFinalize() {
-    if (!createdEventId) { show({ text: 'Evento não criado', kind: 'err' }); return }
-    if (!ticketsSaved && Array.isArray(tts) && tts.length > 0) {
-      setLoading(true)
-      try {
+      if (Array.isArray(tts) && tts.length > 0) {
         const payloads = tts.map((t, i) => {
           const name = String(t.name || '').trim()
           const qty = Number(t.quantity || 0)
@@ -365,44 +355,20 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
           const finalName = name || (t.paid ? `Ingresso Pago ${i+1}` : `Ingresso Grátis ${i+1}`)
           return { name: finalName, price, quantity: qty }
         }).filter(Boolean) as Array<{ name: string; price: number; quantity: number }>
-        const createdIds: string[] = []
         for (const p of payloads) {
-          try { const j = await createTicketType(createdEventId, p); createdIds.push(String(j?.id || '')) }
+          try { await createTicketType(id, p) }
           catch (e: unknown) { const msg = ticketTypeCreateErrorText(e); show({ text: msg, kind: 'err' }) }
         }
-        if (createdIds.length > 0) { show({ text: 'Ingressos criados', kind: 'ok' }); setTicketsSaved(true) }
-      } finally { setLoading(false) }
-    }
-    onCreated?.(createdEventId)
-    onClose()
-  }
-
-  async function onFinalizeAndPublish() {
-    if (!createdEventId) { show({ text: 'Evento não criado', kind: 'err' }); return }
-    if (!ticketsSaved && Array.isArray(tts) && tts.length > 0) {
-      setLoading(true)
-      try {
-        const payloads = tts.map((t, i) => {
-          const name = String(t.name || '').trim()
-          const qty = Number(t.quantity || 0)
-          const price = t.paid ? Number(t.price || 0) : 0
-          if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) return null
-          const finalName = name || (t.paid ? `Ingresso Pago ${i+1}` : `Ingresso Grátis ${i+1}`)
-          return { name: finalName, price, quantity: qty }
-        }).filter(Boolean) as Array<{ name: string; price: number; quantity: number }>
-        for (const p of payloads) { try { await createTicketType(createdEventId, p) } catch (e: unknown) { const msg = ticketTypeCreateErrorText(e); show({ text: msg, kind: 'err' }) } }
-        setTicketsSaved(true)
-      } finally { setLoading(false) }
-    }
-    try {
-      await publishEvent(createdEventId)
+        /* no-op */
+      }
+      await publishEvent(id)
       show({ text: 'Evento publicado', kind: 'ok' })
+      onCreated?.(id)
+      onClose()
     } catch (e: unknown) {
-      const msg = publishErrorText(e)
+      const msg = eventCreateErrorText(e)
       show({ text: msg, kind: 'err' })
-    }
-    onCreated?.(createdEventId)
-    onClose()
+    } finally { setLoading(false) }
   }
 
   let section: ReactNode = null
@@ -449,7 +415,6 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       loading,
       user,
       onBack: ()=>setStep(2),
-      onFinalize: () => { onFinalize() },
       onFinalizeAndPublish: () => { void onFinalizeAndPublish() },
     })
   }

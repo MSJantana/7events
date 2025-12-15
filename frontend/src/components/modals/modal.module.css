@@ -110,6 +110,12 @@
   background: #fee2e2;
 }
 
+.errorText {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 4px;
+}
+
 .inputSm {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -210,6 +216,26 @@
   box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
   padding: 16px;
   border-top: 3px solid var(--warn);
+}
+
+.checkoutCard {
+  max-width: 440px;
+  margin: 0;
+  padding: 12px;
+}
+
+/* linha de pagamento ocupa as duas colunas (embaixo da imagem) */
+.paymentRow {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+/* card da direita dentro do grid interno do PaymentSection */
+.paymentDetails {
+  width: 100%;
+  max-width: none;
+  min-height: 100PX; /* altura mínima para igualar ao cartão de crédito */
+  min-width: 390px; /* largura mínima igual ao painel de cartão */
 }
 
 .sidebar {
@@ -405,15 +431,38 @@
   color: var(--gray);
 }
 
-.checkoutMethods { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px }
-.checkoutMethod {
-  display:inline-flex; align-items:center; gap:8px;
-  border:1px solid var(--border); border-radius:9999px;
-  padding:8px 12px; background:#fff; color:var(--text);
-  cursor:pointer; font-weight:700;
+.checkoutMethods {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
 }
-.checkoutMethodActive { background:#fffbeb; border-color:var(--warn); color:#92400e }
-.checkoutInfo { display:flex; align-items:center; gap:12px; margin-top:8px }
+
+.checkoutMethod {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid var(--border);
+  border-radius:9999px;
+  padding:8px 12px;
+  background:#fff;
+  color:var(--text);
+  cursor:pointer;
+  font-weight:700;
+}
+
+.checkoutMethodActive {
+  background:#fffbeb;
+  border-color:var(--warn);
+  color:#92400e;
+}
+
+.checkoutInfo {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:8px;
+}
 
 /* responsivo básico pro grid */
 @media (max-width: 768px) {
@@ -424,5 +473,9 @@
   .sidebar {
     border-left: none;
     padding-left: 0;
+  }
+
+  .paymentRow {
+    grid-column: 1 / -1;
   }
 }

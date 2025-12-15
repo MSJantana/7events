@@ -58,11 +58,18 @@ function MetaRows({ dateText, location, alignRight }: Readonly<{ dateText: strin
     </div>
   )
 }
-function PriceBlock({ basePrice, selected, selectedQty }: Readonly<{ basePrice: number; selected?: TicketType; selectedQty?: number }>) {
+function PriceBlock({ data, selected, selectedQty }: Readonly<{ data: EventDetail; selected?: TicketType; selectedQty?: number }>) {
   return (
     <div style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
       <span className="mi" aria-hidden>attach_money</span>
-      <span>{fmtMoneyBRL(selected ? selected.price : basePrice)}</span>
+      <span>
+        {(() => {
+          const allFree = (data.ticketTypes || []).every(tt => Number(tt.price || 0) === 0)
+          if (allFree) return fmtMoneyBRL(0)
+          if (selected) return fmtMoneyBRL(selected.price)
+          return 'Selecione um ingresso'
+        })()}
+      </span>
       {selected ? (
         <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#ffffff', border:'1px solid #e5e7eb', borderRadius:12, padding:'6px 10px', color:'#0b1220', fontWeight:700 }}>
           <span className="mi" aria-hidden>sell</span>
@@ -94,7 +101,7 @@ export default function EventHeader({ data, selected, selectedQty, showRange, sh
     <>
       {TitleRow({ data, showBadge, justify })}
       {MetaRows({ dateText, location: data.location, alignRight })}
-      {PriceBlock({ basePrice: data.minPrice, selected, selectedQty })}
+      {PriceBlock({ data, selected, selectedQty })}
       {boxedDescription ? (
         DescriptionHeader({ justify, label: descLabel, maxWidth: descMaxWidth })
       ) : null}

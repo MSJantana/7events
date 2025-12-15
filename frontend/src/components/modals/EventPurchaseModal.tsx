@@ -57,6 +57,8 @@ type PurchaseProps = {
   onChangeQty: (n: number) => void
   step: Step
   finalized: boolean
+  paymentValid: boolean
+  setPaymentValid: (b: boolean) => void
 }
 
 function FlowStatusBox({ flowStatus }: Readonly<{ flowStatus: FlowStatus }>) {
@@ -134,6 +136,7 @@ function StepSwitcher(p: Readonly<PurchaseProps>) {
         selected={p.selected}
         qty={p.qty}
         maxQty={p.maxQty}
+        onValidityChange={(ok)=>p.setPaymentValid(ok)}
       />
     )
   }
@@ -169,7 +172,8 @@ function PurchaseContent(p: Readonly<PurchaseProps>) {
   }
   if (p.step === 1) {
     const imageUrl = p.data.imageUrl || ''
-    const isFree = Number(p.selected?.price || 0) === 0
+    const allFree = (p.data.ticketTypes || []).every(tt => Number(tt.price || 0) === 0)
+    const isFree = allFree
     return (
       <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
         <div style={{ flex:'0 0 360px', width:360, minWidth:280, position:'relative' }}>
@@ -192,17 +196,17 @@ function PurchaseContent(p: Readonly<PurchaseProps>) {
   if (p.step === 2) {
     const imageUrl = p.data.imageUrl || ''
     return (
-      <div style={{ display:'flex', gap:28, color: 'var(--text)', position:'relative' }}>
-        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginRight:20 }}>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:20, color: 'var(--text)', position:'relative', overflow:'hidden', maxWidth:'100%' }}>
+        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginRight:0, minWidth:0 }}>
           <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} />
           <StepSwitcher {...p} />
         </div>
-        <div style={{ flex:'0 0 360px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
+        <div style={{ flex:'0 0 320px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
         <div className={styles.actions} style={{ position:'absolute', right:28, bottom:18, justifyContent:'flex-end', gap:12 }}>
           <button className={`${styles.btn} ${styles.ghost}`} onClick={() => p.setStep(1)} style={{ padding:'12px 18px', borderRadius:12 }}>Voltar</button>
           <button
             className={`${styles.btn} ${styles.primary}`}
-            disabled={!p.paymentMethod}
+            disabled={!p.paymentMethod || (p.paymentMethod!=='FREE' && !p.paymentValid)}
             onClick={async ()=>{
               try {
                 let id = p.orderId
@@ -218,6 +222,20 @@ function PurchaseContent(p: Readonly<PurchaseProps>) {
             style={{ padding:'12px 18px', borderRadius:12 }}
           >{p.paymentMethod==='FREE' ? 'Confirmar' : 'Pagar'}</button>
         </div>
+      </div>
+    )
+  }
+  if (p.step === 3) {
+    const imageUrl = p.data?.imageUrl || ''
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:12, color: 'var(--text)' }}>
+        <div style={{ display:'flex', gap:20, alignItems:'flex-start' }}>
+          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10 }}>
+            <EventHeader data={p.data!} selected={p.selected} selectedQty={p.qty} />
+          </div>
+          <div style={{ flex:'0 0 320px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
+        </div>
+        <StepSwitcher {...p} />
       </div>
     )
   }
@@ -272,9 +290,9 @@ async function payAndProceed(
   setFlowStatus: (s: FlowStatus) => void,
   setStep: (s: Step) => void
 ) {
-  const msg = _paymentMethod === 'FREE' ? 'Compra confirmada (grátis)' : 'Pedido criado. Aguardando pagamento...'
+  const msg = _paymentMethod === 'FREE' ? 'Pedido gratuito criado — será finalizado automaticamente em até 5 minutos' : 'Pedido criado. Aguardando pagamento...'
   setFlowStatus({ text: msg, kind: 'ok' })
-  if (_paymentMethod !== 'FREE') setStep(3)
+  setStep(3)
 }
 
 type Props = {
@@ -290,7 +308,7 @@ type Props = {
 }
 
 export default function EventPurchaseModal({ open, loading, error, data, selectedTT, qty, onClose, onSelectTT, onChangeQty }: Readonly<Props>) {
-  const expiredEvent = useExpired(data?.startDate, data?.status)
+  const expiredEvent = useExpired(data?.endDate, data?.status)
   const [tickets, setTickets] = useState((data?.ticketTypes || []).slice())
   const lastTicketsRef = useRef<TicketType[]>(tickets)
   const [highlightIds, setHighlightIds] = useState<string[]>([])
@@ -298,6 +316,7 @@ export default function EventPurchaseModal({ open, loading, error, data, selecte
   const [orderId, setOrderId] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [flowStatus, setFlowStatus] = useState<FlowStatus>({ text: '', kind: '' })
+  const [paymentValid, setPaymentValid] = useState(false)
   const finalizeTimerRef = useRef<number | null>(null)
   const [finalized, setFinalized] = useState(false)
   useEffect(() => {
@@ -387,6 +406,8 @@ useEffect(() => {
     onChangeQty,
     step,
     finalized,
+    paymentValid,
+    setPaymentValid,
   }
   return (
     <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target && step!==2) onClose() }}>

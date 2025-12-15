@@ -3,37 +3,57 @@ import { z } from 'zod'
 export const createEventSchema = z.object({
   title: z.string().min(3),
   description: z.string().min(10),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  startDate: z.string().refine((s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s)) || /^\d{2}\/\d{2}\/\d{4}$/.test(String(s))), { message: 'invalid_date_format' }),
+  startTime: z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal('')]).optional(),
   location: z.string().min(3),
-  capacity: z.number().int().positive(),
+  capacity: z.coerce.number().int().positive(),
   imageUrl: z.string().trim().refine((v) => { try { new URL(v); return true } catch { return false } }, { message: 'invalid_url' }).optional()
 }).superRefine((v, ctx) => {
-  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(v.startDate))
-  if (!m) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid_date_format', path: ['startDate'] }); return }
-  const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
+  const raw = String(v.startDate)
+  let y = 0, mo = 0, d = 0
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
+    if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
+    y = Number(m[1]); mo = Number(m[2]); d = Number(m[3])
+  } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+    const m = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
+    if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
+    d = Number(m[1]); mo = Number(m[2]); y = Number(m[3])
+  } else {
+    ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return
+  }
   const s = new Date(y, mo - 1, d, 0, 0, 0, 0)
   const startOfToday = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0) })()
-  if (s.getTime() < startOfToday.getTime()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'start_in_past', path: ['startDate'] })
+  if (s.getTime() < startOfToday.getTime()) ctx.addIssue({ code: 'custom', message: 'start_in_past', path: ['startDate'] })
 })
 
 export const updateEventSchema = z.object({
   title: z.string().min(3).optional(),
   description: z.string().min(10).optional(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  startDate: z.string().refine((s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s)) || /^\d{2}\/\d{2}\/\d{4}$/.test(String(s))), { message: 'invalid_date_format' }).optional(),
+  startTime: z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal('')]).optional(),
   location: z.string().min(3).optional()
 }).superRefine((v, ctx) => {
   if (v.title === undefined && v.description === undefined && v.startDate === undefined && v.location === undefined) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'no_fields' })
+    ctx.addIssue({ code: 'custom', message: 'no_fields' })
   }
   const startOfToday = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0) })()
   if (v.startDate !== undefined) {
-    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(v.startDate))
-    if (!m) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid_date_format', path: ['startDate'] }); return }
-    const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
+    const raw = String(v.startDate)
+    let y = 0, mo = 0, d = 0
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
+      if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
+      y = Number(m[1]); mo = Number(m[2]); d = Number(m[3])
+    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+      const m = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
+      if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
+      d = Number(m[1]); mo = Number(m[2]); y = Number(m[3])
+    } else {
+      ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return
+    }
     const s = new Date(y, mo - 1, d, 0, 0, 0, 0)
-    if (s.getTime() < startOfToday.getTime()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'start_in_past', path: ['startDate'] })
+    if (s.getTime() < startOfToday.getTime()) ctx.addIssue({ code: 'custom', message: 'start_in_past', path: ['startDate'] })
   }
 })
 

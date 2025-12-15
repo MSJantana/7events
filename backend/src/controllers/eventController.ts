@@ -31,9 +31,23 @@ export const eventController = {
 
   async get(req: Request, res: Response) {
     const { id } = req.params
-    const event = await eventService.getEventById(id)
-    if (!event) return res.status(404).json({ error: 'not_found' })
-    res.json(event)
+    const found = await eventService.getEventById(id)
+    if (!found) return res.status(404).json({ error: 'not_found' })
+    const ticketTypes = await prisma.ticketType.findMany({ where: { eventId: found.id } })
+    const minPrice = ticketTypes.length ? Math.min(...ticketTypes.map(t => Number(t.price))) : 0
+    return res.json({
+      id: found.id,
+      title: found.title,
+      description: found.description,
+      location: found.location,
+      startDate: found.startDate,
+      endDate: found.endDate,
+      status: found.status,
+      imageUrl: found.imageUrl,
+      capacity: found.capacity,
+      minPrice,
+      ticketTypes
+    })
   },
 
   async getBySlug(req: Request, res: Response) {
@@ -70,8 +84,15 @@ export const eventController = {
   async create(req: AuthedRequest, res: Response) {
     try {
       const body = createEventSchema.parse(req.body)
-      const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(body.startDate))
-      const y = Number(m?.[1] || 0); const mo = Number(m?.[2] || 0); const d = Number(m?.[3] || 0)
+      const raw = String(body.startDate)
+      let y = 0, mo = 0, d = 0
+      const m1 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
+      if (m1) {
+        y = Number(m1[1] || 0); mo = Number(m1[2] || 0); d = Number(m1[3] || 0)
+      } else {
+        const m2 = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
+        y = Number(m2?.[3] || 0); mo = Number(m2?.[2] || 0); d = Number(m2?.[1] || 0)
+      }
       let hh = 0, mm = 0
       if (typeof body.startTime === 'string') {
         const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
@@ -80,7 +101,11 @@ export const eventController = {
       const start = new Date(y, mo - 1, d, hh, mm, 0, 0)
       const end = new Date(y, mo - 1, d, 23, 59, 59, 999)
       const event = await eventService.createEvent({
-        ...body,
+        title: body.title,
+        description: body.description,
+        location: body.location,
+        capacity: body.capacity,
+        imageUrl: body.imageUrl,
         startDate: start,
         endDate: end,
         userId: req.user.sub
@@ -102,9 +127,17 @@ export const eventController = {
     try {
       const body = updateEventSchema.parse(req.body)
       const data: any = { ...body }
+      if ('startTime' in data) delete data.startTime
       if (data.startDate) {
-        const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(data.startDate))
-        const y = Number(m?.[1] || 0); const mo = Number(m?.[2] || 0); const d = Number(m?.[3] || 0)
+        const raw = String(data.startDate)
+        let y = 0, mo = 0, d = 0
+        const m1 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
+        if (m1) {
+          y = Number(m1[1] || 0); mo = Number(m1[2] || 0); d = Number(m1[3] || 0)
+        } else {
+          const m2 = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
+          y = Number(m2?.[3] || 0); mo = Number(m2?.[2] || 0); d = Number(m2?.[1] || 0)
+        }
         let hh = 0, mm = 0
         if (typeof body.startTime === 'string') {
           const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)

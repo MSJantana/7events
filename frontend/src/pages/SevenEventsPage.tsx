@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import Header from '../components/Header'
 import EventsCarousel from '../components/EventsCarousel'
 import { useAuth } from '../hooks/useAuth'
@@ -8,10 +8,8 @@ import { useEventsCarousel } from '../hooks/useEventsCarousel'
 import pageStyles from './seven-events.module.css'
 import { useToast } from '../hooks/useToast'
 import { API_URL, api } from '../services/api'
-import { getEventById } from '../services/events'
 import type { EventSummary, EventDetail } from '../types'
 import AuthModal from '../components/modals/AuthModal'
-import EventDetailModal from '../components/modals/EventDetailModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
 import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
@@ -19,23 +17,12 @@ import EditEventModal from '../components/modals/EditEventModal'
 import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import Footer from '../components/Footer'
 
-function slugify(s: string) {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replaceAll(/[\u0300-\u036f]/g, '')
-    .replaceAll(/([^a-z0-9]+)/g, '-')
-    .replaceAll(/(^-+)|(-+$)/g, '')
-}
-
 export default function SevenEventsPage() {
   const { user, logout, setUser } = useAuth()
   const { events, activeIndex, setActiveIndex, setEvents } = useEventsCarousel()
   const { show } = useToast()
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [showEventModal, setShowEventModal] = useState(false)
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -107,21 +94,7 @@ export default function SevenEventsPage() {
     } finally { setEventLoading(false) }
   }
 
-  async function openDetailsById(id: string) {
-    setShowEventModal(true)
-    setEventLoading(true)
-    setEventError('')
-    setEventData(null)
-    try {
-      const r = await fetch(`${API_URL}/events/${id}`)
-      if (!r.ok) throw new Error('not_found')
-      const j = await r.json()
-      setEventData(j)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
-      setEventError(msg)
-    } finally { setEventLoading(false) }
-  }
+  // removido modal de detalhes; abrimos direto a compra
 
   useEffect(() => {
     const buyId = searchParams.get('buyId') || ''
@@ -165,39 +138,19 @@ export default function SevenEventsPage() {
           onSelect={(i) => setActiveIndex(() => i)}
           onOpenEvent={(ev) => {
             setActiveIndex(events.findIndex(e => e.id===ev.id))
-            if (ev.status === 'FINALIZED') {
-              void openDetailsById(ev.id)
-              return
-            }
             if (user) {
               void openPurchaseById(ev.id)
             } else {
               setShowAuthModal(true)
+              const next = new URLSearchParams(searchParams)
+              next.set('buyId', ev.id)
+              setSearchParams(next)
             }
           }}
         />
       </main>
 
-      <EventDetailModal
-        open={showEventModal}
-        loading={eventLoading}
-        error={eventError}
-        data={eventData}
-        onClose={() => setShowEventModal(false)}
-        onBuy={(ev) => {
-          if (!user) {
-            const slug = slugify(ev.title)
-            setShowEventModal(false)
-            navigate(`/login?buy=${encodeURIComponent(slug)}`)
-            return
-          }
-          setEventData(ev)
-          setSelectedTT('')
-          setQty(1)
-          setShowEventModal(false)
-          setShowPurchaseModal(true)
-        }}
-      />
+      {/* removido EventDetailModal */}
       <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onLoggedIn={(u) => { setUser(u); setShowAuthModal(false) }} />
       <CreateEventModal
         open={showCreateModal}
@@ -213,13 +166,8 @@ export default function SevenEventsPage() {
           show({ text: 'Eventos atualizados', kind: 'ok' })
           if (createdId && user) {
             try {
-              const detail = await getEventById(createdId)
-              const hasAvailable = (detail.ticketTypes || []).some(tt => Number(tt.quantity || 0) > 0)
-              if (hasAvailable) {
-                await openPurchaseById(createdId)
-              } else {
-                await openDetailsById(createdId)
-              }
+              // sempre abrir compra; modal lida com esgotado/expirado
+              await openPurchaseById(createdId)
             } catch { show({ text: 'Falha ao carregar evento', kind: 'err' }) }
           }
         }}
