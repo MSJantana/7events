@@ -158,7 +158,7 @@ export default function Login() {
   }
 
   return (
-    <div style={{ height: '100vh', minHeight: '100vh', background: palette.bg, display: 'flex', flexDirection: 'column', position: 'relative', boxSizing: 'border-box', paddingTop: 56, overflow: 'hidden' }}>
+    <div style={{ height: '100vh', background: palette.bg, display: 'flex', flexDirection: 'column', position: 'relative', boxSizing: 'border-box', paddingTop: 100, overflow: 'hidden' }}>
       <Header
         user={user}
         onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowModal(true); setShowEmailForm(false) } }}
@@ -201,8 +201,8 @@ export default function Login() {
         }}
       />
 
-      <section style={{ position: 'relative', padding: '32px 0', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        <div style={{ width:'100%', height:'100%', margin:'0 auto', padding:'0 32px', overflow:'hidden' }}>
+      <section style={{ position: 'relative', padding: '32px 0', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', justifyContent: 'center' }}>
+        <div style={{ width:'100%', margin:'0 auto', padding:'0 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ width: '100%', display: 'flex', gap: 14, flexWrap:'wrap' }}>
           </div>
           {refreshing && null}

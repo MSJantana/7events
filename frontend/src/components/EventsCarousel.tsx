@@ -107,7 +107,7 @@ export default function EventsCarousel({ events, activeIndex, onSelect, onOpenEv
             })
           ) : (
             <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <div className={`${modalStyles.notice} ${modalStyles.noticeInfo}`}>Nenhum evento publicado</div>
+              <div className={`${modalStyles.notice} ${modalStyles.noticeInfo}`} style={{ fontSize: '24px', padding: '24px 48px' }}>Nenhum evento publicado</div>
             </div>
           )}
         </div>
