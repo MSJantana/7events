@@ -10,6 +10,7 @@ import debugRouter from './routes/debug'
 import { requestLogger } from './middlewares/requestLogger'
 import usersRouter from './routes/users'
 import imagesRouter from './routes/images'
+import ticketsRouter from './routes/tickets'
 
 const app = express()
 
@@ -34,5 +35,6 @@ app.use('/orders', ordersRouter)
 app.use('/debug', debugRouter)
 app.use('/users', usersRouter)
 app.use('/images', imagesRouter)
+app.use('/tickets', ticketsRouter)
 
 export default app

@@ -96,6 +96,8 @@ model Ticket {
   eventId      String
   userId       String?
   status       TicketStatus @default(WAITING)
+  usedAt       DateTime?
+  expiresAt    DateTime?
   order        Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
   event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -110,6 +112,8 @@ enum TicketStatus {
   ACTIVE
   CANCELED
   REFUNDED
+  USED
+  INVALID
 }
 
 model Payment {

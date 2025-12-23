@@ -12,11 +12,11 @@ export const createEventSchema = z.object({
   const raw = String(v.startDate)
   let y = 0, mo = 0, d = 0
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
     if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
     y = Number(m[1]); mo = Number(m[2]); d = Number(m[3])
   } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
-    const m = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw)
     if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
     d = Number(m[1]); mo = Number(m[2]); y = Number(m[3])
   } else {
@@ -42,11 +42,11 @@ export const updateEventSchema = z.object({
     const raw = String(v.startDate)
     let y = 0, mo = 0, d = 0
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-      const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
       if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
       y = Number(m[1]); mo = Number(m[2]); d = Number(m[3])
     } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
-      const m = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw)
       if (!m) { ctx.addIssue({ code: 'custom', message: 'invalid_date_format', path: ['startDate'] }); return }
       d = Number(m[1]); mo = Number(m[2]); y = Number(m[3])
     } else {

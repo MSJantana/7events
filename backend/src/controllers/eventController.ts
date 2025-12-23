@@ -24,7 +24,9 @@ function toSlug(s: string) {
 export const eventController = {
   async list(req: Request, res: Response) {
     const authed = !!(req as any).user
-    const status = authed ? ((req.query.status as any) || 'PUBLISHED') : 'PUBLISHED'
+    const q = (req.query.status as string) || 'PUBLISHED'
+    const allowed = authed ? ['PUBLISHED', 'DRAFT', 'CANCELED', 'FINALIZED'] : ['PUBLISHED', 'FINALIZED']
+    const status = allowed.includes(q) ? (q as any) : 'PUBLISHED'
     const events = await eventService.listEvents(status)
     res.json(events)
   },

@@ -5,8 +5,8 @@ export function fmtMoneyBRL(n?: number) {
 function toLocalDateInternal(iso?: string, endOfDay = false) {
   try {
     const s = String(iso || '')
-    if (!s) return new Date(NaN)
-    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(s)
+    if (!s) return new Date(Number.NaN)
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
     if (m) {
       const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
       return new Date(y, mo - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0)
@@ -14,7 +14,7 @@ function toLocalDateInternal(iso?: string, endOfDay = false) {
     const d = new Date(s)
     if (!endOfDay) return d
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
-  } catch { return new Date(NaN) }
+  } catch { return new Date(Number.NaN) }
 }
 
 export function toLocalDate(iso?: string, endOfDay = false) {

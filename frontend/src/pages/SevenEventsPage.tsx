@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Header from '../components/Header'
 import EventsCarousel from '../components/EventsCarousel'
+import FinalizedEventsRow from '../components/FinalizedEventsRow'
 import { useAuth } from '../hooks/useAuth'
 import { useEventsCarousel } from '../hooks/useEventsCarousel'
+import { getEventsByStatus } from '../services/events'
  
 import pageStyles from './seven-events.module.css'
 import { useToast } from '../hooks/useToast'
@@ -22,6 +24,7 @@ export default function SevenEventsPage() {
   const { events, activeIndex, setActiveIndex, setEvents } = useEventsCarousel()
   const { show } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [finalizedEvents, setFinalizedEvents] = useState<EventSummary[]>([])
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -120,6 +123,14 @@ export default function SevenEventsPage() {
     return () => { (globalThis as EventTarget).removeEventListener('openMyTickets', h) }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    getEventsByStatus('FINALIZED').then((list) => {
+      if (!cancelled && Array.isArray(list)) setFinalizedEvents(list)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <div className={pageStyles.page} style={{ position: 'relative' }}>
       <Header
@@ -131,7 +142,7 @@ export default function SevenEventsPage() {
         onLogout={async () => { await logout(); setUser(null) }}
         onMakeOrder={() => { if (user) { handleMakeOrder() } else { setShowAuthModal(true) } }}
       />
-      <main style={{ flex: 1, overflow: 'hidden' }}>
+      <main style={{ flex: 1 }}>
         <EventsCarousel
           events={events}
           activeIndex={activeIndex}
@@ -146,6 +157,21 @@ export default function SevenEventsPage() {
               next.set('buyId', ev.id)
               setSearchParams(next)
             }
+          }}
+        />
+        <FinalizedEventsRow
+          events={finalizedEvents}
+          onOpenEvent={(ev) => {
+             // Finalized events usually just show details, but logic for purchase modal handles "finalized" check
+             // Maybe we just open it and the modal shows "Finished"
+             if (user) {
+               void openPurchaseById(ev.id)
+             } else {
+                setShowAuthModal(true)
+                const next = new URLSearchParams(searchParams)
+                next.set('buyId', ev.id)
+                setSearchParams(next)
+             }
           }}
         />
       </main>

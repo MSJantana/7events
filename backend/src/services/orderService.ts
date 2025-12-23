@@ -72,7 +72,8 @@ export const orderService = {
           orderId: order.id,
           ticketTypeId,
           eventId,
-          status: 'WAITING'
+          status: 'WAITING',
+          expiresAt: event.endDate
         }
       })
       audit('order_reserved', { orderId: order.id, ticketId: ticket.id, eventId, ticketTypeId })
@@ -108,11 +109,19 @@ export const orderService = {
         return sum + Number(tt.price) * it.quantity
       }, 0)
     }
-    async function createTickets(tx: any, orderId: string, evId: string, arr: Array<{ ticketTypeId: string; quantity: number }>) {
+    async function createTickets(tx: any, orderId: string, evId: string, arr: Array<{ ticketTypeId: string; quantity: number }>, expiresAt: Date) {
       const list: any[] = []
       for (const it of arr) {
         for (let i = 0; i < it.quantity; i++) {
-          const t = await tx.ticket.create({ data: { orderId, ticketTypeId: it.ticketTypeId, eventId: evId, status: 'WAITING' } })
+          const t = await tx.ticket.create({
+             data: { 
+               orderId, 
+               ticketTypeId: it.ticketTypeId, 
+               eventId: evId, 
+               status: 'WAITING',
+               expiresAt
+             } 
+          })
           list.push(t)
           audit('order_reserved', { orderId, ticketId: t.id, eventId: evId, ticketTypeId: it.ticketTypeId })
         }
@@ -133,7 +142,7 @@ export const orderService = {
       const totalPrice = priceSum(ttMap, items)
       const code = await nextCode(tx, event!.startDate, event!.title)
       const order = await tx.order.create({ data: { userId, eventId, ticketQuantity: qty, totalPrice, code } })
-      const tickets = await createTickets(tx, order.id, eventId, items)
+      const tickets = await createTickets(tx, order.id, eventId, items, event!.endDate)
       if (totalPrice === 0) {
         const updatedTickets: any[] = []
         for (const t of tickets) {
