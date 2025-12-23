@@ -74,22 +74,29 @@ function todayYMD() {
   const d = String(t.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
-function validateStartDateNotInPast(start: string): string | null {
-  const s = start || todayYMD()
-  const a = parseYMD(s)
-  const startDate = new Date(a.y, a.m - 1, a.d)
-  const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  if (startDate.getTime() < today.getTime()) return 'Data de início não pode ser inferior à data atual'
+function validateDates(startD: string, startT: string, endD: string, endT: string): string | null {
+  const sObj = parseYMD(startD || todayYMD())
+  const [sh, sm] = String(startT || '00:00').split(':').map(Number)
+  const start = new Date(sObj.y, sObj.m - 1, sObj.d, sh || 0, sm || 0)
+  
+  const now = new Date()
+  if (start < now) return 'Data e hora inválida'
+
+  const eObj = parseYMD(endD || todayYMD())
+  const [eh, em] = String(endT || '00:00').split(':').map(Number)
+  const end = new Date(eObj.y, eObj.m - 1, eObj.d, eh || 0, em || 0)
+
+  if (end <= start) return 'Data de término deve ser posterior ao início'
+  
   return null
 }
-function Step1Section(p: Readonly<{ preview: string | null; hint: string; title: string; description: string; location: string; startDate: string; startTime: string; capacity: string; onTitleChange: (v: string) => void; onDescriptionChange: (v: string) => void; onLocationChange: (v: string) => void; onStartDateChange: (v: string) => void; onStartTimeChange: (v: string) => void; onCapacityChange: (v: string) => void; handleImageChange: (e: ChangeEvent<HTMLInputElement>) => void; loading: boolean; user: User | null; onClose: () => void; onSubmit: () => void }>): ReactNode {
-  const dateErr = validateStartDateNotInPast(p.startDate)
+
+function Step1Section(p: Readonly<{ preview: string | null; hint: string; title: string; description: string; location: string; startDate: string; startTime: string; endDate: string; endTime: string; capacity: string; onTitleChange: (v: string) => void; onDescriptionChange: (v: string) => void; onLocationChange: (v: string) => void; onStartDateChange: (v: string) => void; onStartTimeChange: (v: string) => void; onEndDateChange: (v: string) => void; onEndTimeChange: (v: string) => void; onCapacityChange: (v: string) => void; handleImageChange: (e: ChangeEvent<HTMLInputElement>) => void; loading: boolean; user: User | null; onClose: () => void; onSubmit: () => void }>): ReactNode {
   const titleInvalid = String(p.title || '').trim() === ''
   const descriptionInvalid = String(p.description || '').trim() === ''
   const locationInvalid = String(p.location || '').trim() === ''
   const startInvalid = String(p.startDate || '').trim() === ''
-  const timeInvalid = !/^\d{2}:\d{2}$/.test(String(p.startTime||''))
-  const endInvalid = false
+  const endInvalid = String(p.endDate || '').trim() === ''
   const capacityInvalid = !Number(p.capacity || 0) || Number(p.capacity) <= 0
   const filled = !(titleInvalid || descriptionInvalid || locationInvalid || startInvalid || endInvalid || capacityInvalid)
   return (
@@ -108,13 +115,16 @@ function Step1Section(p: Readonly<{ preview: string | null; hint: string; title:
       <div className={styles.field}><label htmlFor="location" className={styles.label}>Local</label><input id="location" className={`${styles.input} ${locationInvalid ? styles.invalid : ''}`} value={p.location} onChange={e=>p.onLocationChange(e.target.value)} /></div>
       <div className={styles.row}>
         <div className={`${styles.field} ${styles.col}`}><label htmlFor="startDate" className={styles.label}>Início</label><input id="startDate" className={`${styles.inputSm} ${startInvalid ? styles.invalid : ''}`} type="date" placeholder="dd/mm/aaaa" value={p.startDate} onChange={e=>p.onStartDateChange(e.target.value)} /></div>
-        <div className={styles.field} style={{ flex:'0 0 120px' }}><label htmlFor="startTime" className={styles.label}>Hora</label><input id="startTime" className={`${styles.inputSm} ${timeInvalid ? styles.invalid : ''}`} type="time" value={p.startTime} onChange={e=>p.onStartTimeChange(e.target.value)} /></div>
+        <div className={styles.field} style={{ flex:'0 0 100px' }}><label htmlFor="startTime" className={styles.label}>Hora</label><input id="startTime" className={styles.inputSm} type="time" value={p.startTime} onChange={e=>p.onStartTimeChange(e.target.value)} /></div>
+        <div className={`${styles.field} ${styles.col}`}><label htmlFor="endDate" className={styles.label}>Fim</label><input id="endDate" className={`${styles.inputSm} ${endInvalid ? styles.invalid : ''}`} type="date" placeholder="dd/mm/aaaa" value={p.endDate} onChange={e=>p.onEndDateChange(e.target.value)} /></div>
+        <div className={styles.field} style={{ flex:'0 0 100px' }}><label htmlFor="endTime" className={styles.label}>Hora</label><input id="endTime" className={styles.inputSm} type="time" value={p.endTime} onChange={e=>p.onEndTimeChange(e.target.value)} /></div>
+      </div>
+      <div className={styles.row} style={{ marginTop:10 }}>
         <div className={styles.field} style={{ flex:'0 0 120px' }}><label htmlFor="capacity" className={styles.label}>Capacidade</label><input id="capacity" className={`${styles.inputSm} ${capacityInvalid ? styles.invalid : ''}`} type="number" min={0} placeholder="0" value={p.capacity} onChange={e=>p.onCapacityChange(e.target.value)} /></div>
       </div>
       <div className={styles.actions}>
         <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onClose}>Cancelar</button>
-        {dateErr ? <div className={`${styles.notice} ${styles.noticeErr}`} style={{ marginRight:'auto' }}>{dateErr}</div> : null}
-        <button disabled={p.loading || !p.user || !!dateErr || !filled} className={`${styles.btn} ${styles.primary}`} onClick={p.onSubmit}>{p.loading ? 'Criando...' : 'Continuar'}</button>
+        <button disabled={p.loading || !p.user || !filled} className={`${styles.btn} ${styles.primary}`} onClick={p.onSubmit}>{p.loading ? 'Criando...' : 'Continuar'}</button>
       </div>
     </>
   )
@@ -201,11 +211,14 @@ function eventCreateErrorText(e: unknown) {
   if (details.length > 0) {
     const msgs = details.map((it) => {
       const field = String(it?.path?.[0] || '')
+      const msg = String(it?.message || '')
       switch (field) {
         case 'title': return 'Campo título é obrigatório (mín 3)'
         case 'description': return 'Campo descrição é obrigatório (mín 10)'
         case 'location': return 'Campo local é obrigatório (mín 3)'
-        case 'startDate': return 'Data de início inválida'
+        case 'startDate': 
+          if (msg === 'date_in_past' || msg === 'start_in_past') return 'Não foi possível criar o evento: data e hora inválidas'
+          return 'Data de início inválida'
         case 'endDate': return 'Data de fim inválida'
         case 'capacity': return 'Capacidade deve ser um inteiro positivo'
         case 'imageUrl': return 'URL de imagem inválida'
@@ -248,7 +261,7 @@ type Props = { open: boolean; onClose: () => void; user: User | null; onCreated?
 
 export default function CreateEventModal({ open, onClose, user, onCreated }: Readonly<Props>) {
   const { show } = useToast()
-  const [form, setForm] = useState({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', capacity: '0' })
+  const [form, setForm] = useState({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', endDate: todayYMD(), endTime: '10:00', capacity: '0' })
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -263,6 +276,21 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     return s + q * p
   }, 0)
 
+  function resetState() {
+    setForm({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', endDate: todayYMD(), endTime: '10:00', capacity: '0' })
+    setFile(null)
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(null)
+    setTts([])
+    setStep(1)
+    setCreatedEventId('')
+  }
+
+  function handleClose() {
+    resetState()
+    onClose()
+  }
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -272,7 +300,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
   }, [open])
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     globalThis.addEventListener('keydown', onKey)
     return () => globalThis.removeEventListener('keydown', onKey)
   }, [open, onClose])
@@ -324,7 +352,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
   async function onSubmit() {
     setLoading(true)
     try {
-      const err = validateStartDateNotInPast(form.startDate)
+      const err = validateDates(form.startDate, form.startTime, form.endDate, form.endTime)
       if (err) { show({ text: err, kind: 'err' }); return }
       setStep(2)
     } finally { setLoading(false) }
@@ -334,7 +362,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
   async function onFinalizeAndPublish() {
     setLoading(true)
     try {
-      const payload = { title: form.title, description: form.description, location: form.location, startDate: form.startDate, startTime: form.startTime, capacity: Number(form.capacity || 0) }
+      const payload = { title: form.title, description: form.description, location: form.location, startDate: form.startDate, startTime: form.startTime, endDate: form.endDate, endTime: form.endTime, capacity: Number(form.capacity || 0) }
       const r = await createEvent(payload)
       const id = String(r?.id || '')
       setCreatedEventId(id)
@@ -364,7 +392,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       await publishEvent(id)
       show({ text: 'Evento publicado', kind: 'ok' })
       onCreated?.(id)
-      onClose()
+      handleClose()
     } catch (e: unknown) {
       const msg = eventCreateErrorText(e)
       show({ text: msg, kind: 'err' })
@@ -381,6 +409,8 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       location: form.location,
       startDate: form.startDate,
       startTime: form.startTime,
+      endDate: form.endDate,
+      endTime: form.endTime,
       
       capacity: form.capacity,
       onTitleChange: (v)=>setForm(f=>({ ...f, title: v })),
@@ -388,12 +418,14 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       onLocationChange: (v)=>setForm(f=>({ ...f, location: v })),
       onStartDateChange: (v)=>setForm(f=>({ ...f, startDate: v })),
       onStartTimeChange: (v)=>setForm(f=>({ ...f, startTime: v })),
+      onEndDateChange: (v)=>setForm(f=>({ ...f, endDate: v })),
+      onEndTimeChange: (v)=>setForm(f=>({ ...f, endTime: v })),
       
       onCapacityChange: (v)=>setForm(f=>({ ...f, capacity: v })),
       handleImageChange,
       loading,
       user,
-      onClose,
+      onClose: handleClose,
       onSubmit: () => { onSubmit() },
     })
   } else if (step === 2) {

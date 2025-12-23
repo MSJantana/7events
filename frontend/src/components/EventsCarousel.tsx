@@ -1,6 +1,6 @@
 import FinalizadoBadge from '../components/FinalizadoBadge'
 import modalStyles from './modals/modal.module.css'
-import { fmtDateLine } from '../utils/format'
+import { fmtEventDuration } from '../utils/format'
 import styles from './carousel.module.css'
 
 function fmtCityUF(s?: string) {
@@ -140,7 +140,7 @@ export default function EventsCarousel({ events, activeIndex, onSelect, onOpenEv
               </div>
               <div className={styles.sub}>
                 <span className="mi" aria-hidden>calendar_month</span>
-                <span>{fmtDateLine(events[activeIndex]?.startDate)}</span>
+                <span>{fmtEventDuration(events[activeIndex]?.startDate, events[activeIndex]?.endDate)}</span>
               </div>
             </div>
           </>

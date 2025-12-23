@@ -1,30 +1,7 @@
-import { fmtDate, fmtMoneyBRL, toLocalDate } from '../../utils/format'
+import { fmtDate, fmtMoneyBRL, fmtEventDuration } from '../../utils/format'
 import type { CSSProperties } from 'react'
 import type { EventDetail, TicketType } from '../../types'
 import FinalizadoBadge from '../FinalizadoBadge'
-
-function formatRange(start?: string, end?: string){
-  try{
-    if(!start || !end) return ''
-    const ds = toLocalDate(start); const de = toLocalDate(end)
-    const MONTH_PT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'] as const
-    const d1 = ds.getDate(); const d2 = de.getDate();
-    const y1 = ds.getFullYear(); const y2 = de.getFullYear();
-    const sameMonth = ds.getMonth() === de.getMonth()
-    const sameYear = y1 === y2
-    if (sameMonth && sameYear) {
-      const m = MONTH_PT[ds.getMonth()] || ''
-      const mc = m.charAt(0).toUpperCase()+m.slice(1)
-      return `${d1} a ${d2} de ${mc}`
-    }
-    const ms = ds.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-    const me = de.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-    const msc = cap(ms); const mec = cap(me)
-    if (sameYear) return `${d1} de ${msc} a ${d2} de ${mec}`
-    return `${d1} de ${msc} de ${y1} a ${d2} de ${mec} de ${y2}`
-  }catch{ return '' }
-}
 
 function justifyValue(alignRight?: boolean) { return alignRight ? 'flex-end' as const : 'flex-start' as const }
 function descStyleOf(boxed?: boolean, alignRight?: boolean, maxW?: number): CSSProperties {
@@ -94,7 +71,7 @@ function DescriptionHeader({ justify, label, maxWidth }: Readonly<{ justify: 'fl
 }
 
 export default function EventHeader({ data, selected, selectedQty, showRange, showBadge, alignRight, boxedDescription, descMaxWidth, descLabel }: Readonly<{ data: EventDetail; selected?: TicketType; selectedQty?: number; showRange?: boolean; showBadge?: boolean; alignRight?: boolean; boxedDescription?: boolean; descMaxWidth?: number; descLabel?: string }>) {
-  const dateText = showRange ? formatRange(data.startDate, data.endDate) : fmtDate(data.startDate)
+  const dateText = showRange ? fmtEventDuration(data.startDate, data.endDate) : fmtDate(data.startDate)
   const justify = justifyValue(alignRight)
   const descStyle = descStyleOf(boxedDescription, alignRight, descMaxWidth)
   return (

@@ -146,105 +146,120 @@ function StepSwitcher(p: Readonly<PurchaseProps>) {
   return null
 }
 
+function CanceledEventView({ data, selected, qty }: { data: EventDetail; selected: TicketType | undefined; qty: number }) {
+  const imageUrl = data.imageUrl || ''
+  return (
+    <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
+      <div style={{ flex:'0 0 360px', width:360, minWidth:280, position:'relative' }}>
+        <div style={{ height:200, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
+        <div style={{ position:'absolute', top:300, left:75, display:'inline-block', padding:'8px 12px', border:'3px solid #ea580c', color:'#ea580c', background:'#fff', borderRadius:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1, transform:'rotate(-12deg)', boxShadow:'0 6px 16px rgba(0,0,0,0.12)' }} aria-label="Evento cancelado carimbo">
+          CANCELADO
+        </div>
+      </div>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginLeft:20 }}>
+        <EventHeader data={data} selected={selected} selectedQty={qty} boxedDescription descLabel="Detalhes do evento" />
+        <div style={{ marginTop: 10, color:'#b91c1c', fontWeight:700 }}>Evento cancelado — ingressos indisponíveis</div>
+      </div>
+    </div>
+  )
+}
+
+function Step1View(p: Readonly<PurchaseProps>) {
+  if (!p.data) return null
+  const imageUrl = p.data.imageUrl || ''
+  const allFree = (p.data.ticketTypes || []).every(tt => Number(tt.price || 0) === 0)
+  const isFree = allFree
+  return (
+    <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
+      <div style={{ flex:'0 0 360px', width:360, minWidth:280, position:'relative' }}>
+        <div style={{ height:200, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
+        {isFree && (
+          <div style={{ position:'absolute', top:300, left:75, display:'inline-block', padding:'8px 12px', border:'3px solid #166534', color:'#166534', background:'#fff', borderRadius:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1, transform:'rotate(-12deg)', boxShadow:'0 6px 16px rgba(0,0,0,0.12)' }} aria-label="Evento grátis carimbo">
+            EVENTO GRÁTIS
+          </div>
+        )}
+      </div>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginLeft:20 }}>
+        <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} boxedDescription descLabel="Detalhes do evento" />
+        {p.expiredEvent ? (
+          <div style={{ marginTop: 10, color:'#b91c1c', fontWeight:700 }}>Evento finalizado — ingressos indisponíveis</div>
+        ) : <TicketsPanel {...p} />}
+      </div>
+    </div>
+  )
+}
+
+function Step2View(p: Readonly<PurchaseProps>) {
+  if (!p.data) return null
+  const imageUrl = p.data.imageUrl || ''
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:20, color: 'var(--text)', position:'relative', overflow:'hidden', maxWidth:'100%' }}>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginRight:0, minWidth:0 }}>
+        <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} />
+        <StepSwitcher {...p} />
+      </div>
+      <div style={{ flex:'0 0 320px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
+      <div className={styles.actions} style={{ position:'absolute', right:28, bottom:18, justifyContent:'flex-end', gap:12 }}>
+        <button className={`${styles.btn} ${styles.ghost}`} onClick={() => p.setStep(1)} style={{ padding:'12px 18px', borderRadius:12 }}>Voltar</button>
+        <button
+          className={`${styles.btn} ${styles.primary}`}
+          disabled={!p.paymentMethod || (p.paymentMethod!=='FREE' && !p.paymentValid)}
+          onClick={async ()=>{
+            try {
+              let id = p.orderId
+              if (!id && p.data?.id && p.selectedTT) {
+                p.setFlowStatus({ text: p.paymentMethod==='FREE' ? 'Criando pedido — aguardando confirmação...' : 'Criando pedido e aguardando pagamento...', kind: 'ok' })
+                const r = await createBulkOrder(p.data.id, [{ ticketTypeId: p.selectedTT, quantity: Math.min(p.qty, p.maxQty) }])
+                id = String(r?.id || '')
+                p.setOrderId(id)
+              }
+              await payAndProceed(String(id || ''), p.paymentMethod as PaymentMethod, p.setFlowStatus, p.setStep)
+            } catch { p.setFlowStatus({ text:'Falha no pagamento', kind:'err' }) }
+          }}
+          style={{ padding:'12px 18px', borderRadius:12 }}
+        >{p.paymentMethod==='FREE' ? 'Confirmar' : 'Pagar'}</button>
+      </div>
+    </div>
+  )
+}
+
+function Step3View(p: Readonly<PurchaseProps>) {
+  if (!p.data) return null
+  const imageUrl = p.data.imageUrl || ''
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12, color: 'var(--text)' }}>
+      <div style={{ display:'flex', gap:20, alignItems:'flex-start' }}>
+        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10 }}>
+          <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} />
+        </div>
+        <div style={{ flex:'0 0 320px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
+      </div>
+      <StepSwitcher {...p} />
+    </div>
+  )
+}
+
 function PurchaseContent(p: Readonly<PurchaseProps>) {
   if (p.loading) { return notice('info', 'Carregando...') }
   if (p.error) { return notice('err', p.errMsg) }
   if (!p.data) { return null }
   if (p.data.status !== 'PUBLISHED') {
     if (p.data.status === 'CANCELED' && !p.expiredEvent) {
-      const imageUrl = p.data.imageUrl || ''
-      return (
-        <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
-          <div style={{ flex:'0 0 360px', width:360, minWidth:280, position:'relative' }}>
-            <div style={{ height:200, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
-            <div style={{ position:'absolute', top:300, left:75, display:'inline-block', padding:'8px 12px', border:'3px solid #ea580c', color:'#ea580c', background:'#fff', borderRadius:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1, transform:'rotate(-12deg)', boxShadow:'0 6px 16px rgba(0,0,0,0.12)' }} aria-label="Evento cancelado carimbo">
-              CANCELADO
-            </div>
-          </div>
-          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginLeft:20 }}>
-            <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} boxedDescription descLabel="Detalhes do evento" />
-            <div style={{ marginTop: 10, color:'#b91c1c', fontWeight:700 }}>Evento cancelado — ingressos indisponíveis</div>
-          </div>
-        </div>
-      )
+      return <CanceledEventView data={p.data} selected={p.selected} qty={p.qty} />
     }
     return notice('info', 'Evento encontrado, porém não ativo')
   }
-  if (p.step === 1) {
-    const imageUrl = p.data.imageUrl || ''
-    const allFree = (p.data.ticketTypes || []).every(tt => Number(tt.price || 0) === 0)
-    const isFree = allFree
-    return (
-      <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
-        <div style={{ flex:'0 0 360px', width:360, minWidth:280, position:'relative' }}>
-          <div style={{ height:200, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
-          {isFree && (
-            <div style={{ position:'absolute', top:300, left:75, display:'inline-block', padding:'8px 12px', border:'3px solid #166534', color:'#166534', background:'#fff', borderRadius:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1, transform:'rotate(-12deg)', boxShadow:'0 6px 16px rgba(0,0,0,0.12)' }} aria-label="Evento grátis carimbo">
-              EVENTO GRÁTIS
-            </div>
-          )}
-        </div>
-        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginLeft:20 }}>
-          <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} boxedDescription descLabel="Detalhes do evento" />
-          {p.expiredEvent ? (
-            <div style={{ marginTop: 10, color:'#b91c1c', fontWeight:700 }}>Evento finalizado — ingressos indisponíveis</div>
-          ) : <TicketsPanel {...p} />}
-        </div>
-      </div>
-    )
-  }
-  if (p.step === 2) {
-    const imageUrl = p.data.imageUrl || ''
-    return (
-      <div style={{ display:'flex', flexWrap:'wrap', gap:20, color: 'var(--text)', position:'relative', overflow:'hidden', maxWidth:'100%' }}>
-        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginRight:0, minWidth:0 }}>
-          <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} />
-          <StepSwitcher {...p} />
-        </div>
-        <div style={{ flex:'0 0 320px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
-        <div className={styles.actions} style={{ position:'absolute', right:28, bottom:18, justifyContent:'flex-end', gap:12 }}>
-          <button className={`${styles.btn} ${styles.ghost}`} onClick={() => p.setStep(1)} style={{ padding:'12px 18px', borderRadius:12 }}>Voltar</button>
-          <button
-            className={`${styles.btn} ${styles.primary}`}
-            disabled={!p.paymentMethod || (p.paymentMethod!=='FREE' && !p.paymentValid)}
-            onClick={async ()=>{
-              try {
-                let id = p.orderId
-                if (!id && p.data?.id && p.selectedTT) {
-                  p.setFlowStatus({ text: p.paymentMethod==='FREE' ? 'Criando pedido — aguardando confirmação...' : 'Criando pedido e aguardando pagamento...', kind: 'ok' })
-                  const r = await createBulkOrder(p.data.id, [{ ticketTypeId: p.selectedTT, quantity: Math.min(p.qty, p.maxQty) }])
-                  id = String(r?.id || '')
-                  p.setOrderId(id)
-                }
-                await payAndProceed(String(id || ''), p.paymentMethod as PaymentMethod, p.setFlowStatus, p.setStep)
-              } catch { p.setFlowStatus({ text:'Falha no pagamento', kind:'err' }) }
-            }}
-            style={{ padding:'12px 18px', borderRadius:12 }}
-          >{p.paymentMethod==='FREE' ? 'Confirmar' : 'Pagar'}</button>
-        </div>
-      </div>
-    )
-  }
-  if (p.step === 3) {
-    const imageUrl = p.data?.imageUrl || ''
-    return (
-      <div style={{ display:'flex', flexDirection:'column', gap:12, color: 'var(--text)' }}>
-        <div style={{ display:'flex', gap:20, alignItems:'flex-start' }}>
-          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10 }}>
-            <EventHeader data={p.data!} selected={p.selected} selectedQty={p.qty} />
-          </div>
-          <div style={{ flex:'0 0 320px', width:320, minWidth:280, height:160, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
-        </div>
+  switch (p.step) {
+    case 1: return <Step1View {...p} />
+    case 2: return <Step2View {...p} />
+    case 3: return <Step3View {...p} />
+    default: return (
+      <div style={{ display:'flex', flexDirection:'column', gap: 10, color: 'var(--text)' }}>
+        <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} />
         <StepSwitcher {...p} />
       </div>
     )
   }
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap: 10, color: 'var(--text)' }}>
-      <EventHeader data={p.data} selected={p.selected} selectedQty={p.qty} />
-      <StepSwitcher {...p} />
-    </div>
-  )
 }
 
 async function refreshTickets(
@@ -319,6 +334,22 @@ export default function EventPurchaseModal({ open, loading, error, data, selecte
   const [paymentValid, setPaymentValid] = useState(false)
   const finalizeTimerRef = useRef<number | null>(null)
   const [finalized, setFinalized] = useState(false)
+
+  function resetState() {
+    setStep(1)
+    setOrderId('')
+    setPaymentMethod('')
+    setFlowStatus({ text: '', kind: '' })
+    setPaymentValid(false)
+    setFinalized(false)
+    if (finalizeTimerRef.current) { clearTimeout(finalizeTimerRef.current); finalizeTimerRef.current = null }
+  }
+
+  function handleClose() {
+    resetState()
+    onClose()
+  }
+
   useEffect(() => {
     if (!open || !data?.id) return
     const next = (data.ticketTypes || []).slice()
@@ -370,7 +401,7 @@ useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (step !== 2) onClose()
+        if (step !== 2) handleClose()
       }
     }
     globalThis.addEventListener('keydown', onKey)
@@ -391,7 +422,7 @@ useEffect(() => {
     selectedTT,
     onSelectTT,
     highlightIds,
-    onClose,
+    onClose: handleClose,
     qty,
     maxQty,
     selected,
@@ -410,7 +441,7 @@ useEffect(() => {
     setPaymentValid,
   }
   return (
-    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target && step!==2) onClose() }}>
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target && step!==2) handleClose() }}>
       <div className={styles.modal}>     
         {publishedActive(data, expiredEvent) ? <Stepper step={step} /> : null}
         <div className={styles.section}><PurchaseContent {...contentProps} /></div>

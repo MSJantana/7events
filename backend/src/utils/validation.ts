@@ -5,6 +5,8 @@ export const createEventSchema = z.object({
   description: z.string().min(10),
   startDate: z.string().refine((s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s)) || /^\d{2}\/\d{2}\/\d{4}$/.test(String(s))), { message: 'invalid_date_format' }),
   startTime: z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal('')]).optional(),
+  endDate: z.string().refine((s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s)) || /^\d{2}\/\d{2}\/\d{4}$/.test(String(s))), { message: 'invalid_date_format' }),
+  endTime: z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal('')]).optional(),
   location: z.string().min(3),
   capacity: z.coerce.number().int().positive(),
   imageUrl: z.string().trim().refine((v) => { try { new URL(v); return true } catch { return false } }, { message: 'invalid_url' }).optional()

@@ -2,9 +2,17 @@ import { prisma } from "../prisma";
 import { Prisma } from "@prisma/client";
 
 export const eventService = {
-  async listEvents(status?: "PUBLISHED" | "DRAFT" | "CANCELED") {
+  async listEvents(status?: "PUBLISHED" | "DRAFT" | "CANCELED" | "FINALIZED" | string[]) {
+    const where: any = {}
+    if (status) {
+      if (Array.isArray(status)) {
+        where.status = { in: status }
+      } else {
+        where.status = status
+      }
+    }
     return prisma.event.findMany({
-      where: status ? { status } : undefined,
+      where,
       orderBy: { startDate: "asc" },
     });
   },

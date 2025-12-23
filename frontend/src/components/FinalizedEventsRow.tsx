@@ -1,6 +1,6 @@
 import type { EventSummary } from '../types'
 import styles from './finalized-events.module.css'
-import { fmtDateLine } from '../utils/format'
+import { fmtEventDuration } from '../utils/format'
 
 type Props = {
   events: EventSummary[]
@@ -38,7 +38,7 @@ export default function FinalizedEventsRow({ events, onOpenEvent }: Readonly<Pro
             <div className={styles.content}>
               <h3 className={styles.cardTitle} title={ev.title}>{ev.title}</h3>
               <p className={styles.location} title={ev.location}>{ev.location}</p>
-              <p className={styles.date}>{fmtDateLine(ev.startDate)}</p>
+              <p className={styles.date}>{fmtEventDuration(ev.startDate, ev.endDate)}</p>
             </div>
           </button>
         ))}

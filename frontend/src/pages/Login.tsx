@@ -54,7 +54,10 @@ export default function Login() {
   const [events, setEvents] = useState<Array<{ id: string; title: string; description?: string; location: string; startDate: string; endDate: string; status: 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'; imageUrl?: string | null }>>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
   const { show } = useToast()
+
+  const publishedEvents = useMemo(() => events.filter(e => e.status === 'PUBLISHED'), [events])
 
   // detect auth (cookie-based)
   useEffect(() => {
@@ -66,6 +69,7 @@ export default function Login() {
         const j = await r.json()
         if (!cancelled && j?.user) setUser({ id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role })
       } catch { setUser(u => u) }
+      finally { if (!cancelled) setAuthLoading(false) }
     })()
     return () => { cancelled = true }
   }, [API])
@@ -98,6 +102,12 @@ export default function Login() {
         setShowEventModal(true)
         const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
         setSelectedTT(firstAvailable?.id || '')
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('buy')
+          next.delete('buyId')
+          return next
+        }, { replace: true })
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Falha ao carregar'
         setEventError(msg)
@@ -117,6 +127,12 @@ export default function Login() {
         setShowEventModal(true)
         const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
         setSelectedTT(firstAvailable?.id || '')
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('buy')
+          next.delete('buyId')
+          return next
+        }, { replace: true })
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Falha ao carregar'
         setEventError(msg)
@@ -126,24 +142,25 @@ export default function Login() {
     }
     const param = buyId || buySlug
     if (!param) return
+    if (authLoading) return
     if (!user) { setShowModal(true); setShowEmailForm(false); return }
     if (buyId) openById(buyId)
     else openBySlug(buySlug)
-  }, [API, buySlug, buyId, user])
+  }, [API, buySlug, buyId, user, authLoading])
 
   useEffect(() => {
-    if (!Array.isArray(events) || events.length <= 1) return
+    if (!Array.isArray(publishedEvents) || publishedEvents.length <= 1) return
     const id = setInterval(() => {
-      setActiveIndex(i => (i + 1) >= events.length ? 0 : (i + 1))
+      setActiveIndex(i => (i + 1) >= publishedEvents.length ? 0 : (i + 1))
     }, 4000)
     return () => clearInterval(id)
-  }, [events])
+  }, [publishedEvents])
 
-  
-
-  
-
-  
+  useEffect(() => {
+    if (publishedEvents.length > 0 && activeIndex >= publishedEvents.length) {
+      setActiveIndex(0)
+    }
+  }, [publishedEvents, activeIndex])
 
   async function reloadEvents() {
     setRefreshing(true)
@@ -157,6 +174,8 @@ export default function Login() {
     show({ text: 'Eventos atualizados', kind: 'ok' })
   }
 
+
+
   return (
     <div style={{ height: '100vh', background: palette.bg, display: 'flex', flexDirection: 'column', position: 'relative', boxSizing: 'border-box', paddingTop: 100, overflow: 'hidden' }}>
       <Header
@@ -167,7 +186,7 @@ export default function Login() {
         onLoginOpen={() => { setShowModal(true); setShowEmailForm(false) }}
         onLogout={async () => { try { await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' }); setUser(null); show({ text:'Sessão encerrada', kind:'ok' }) } catch { show({ text:'Falha ao sair', kind:'err' }) } }}
         onMakeOrder={() => {
-          const active = events[activeIndex]
+          const active = publishedEvents[activeIndex]
           if (!active) { if (!user) { setShowModal(true); setShowEmailForm(false) } ; return }
           if (!user) {
             setShowModal(true)
@@ -201,13 +220,13 @@ export default function Login() {
         }}
       />
 
-      <section style={{ position: 'relative', padding: '32px 0', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', justifyContent: 'center' }}>
+      <section style={{ position: 'relative', padding: 0, display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', justifyContent: 'center' }}>
         <div style={{ width:'100%', margin:'0 auto', padding:'0 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ width: '100%', display: 'flex', gap: 14, flexWrap:'wrap' }}>
           </div>
           {refreshing && null}
           <EventsCarousel
-            events={events}
+            events={publishedEvents}
             activeIndex={activeIndex}
             onSelect={(i)=> setActiveIndex(i)}
             onOpenEvent={(ev) => {
@@ -324,7 +343,11 @@ export default function Login() {
         data={eventData}
         selectedTT={selectedTT}
         qty={qty}
-        onClose={() => setShowEventModal(false)}
+        onClose={() => {
+          setShowEventModal(false)
+          setQty(1)
+          setSelectedTT('')
+        }}
         onSelectTT={(id)=> setSelectedTT(id)}
         onChangeQty={(n)=> setQty(n)}
       />
@@ -335,25 +358,9 @@ export default function Login() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         user={user}
-        onCreated={async (createdId) => {
+        onCreated={async () => {
           await reloadEvents()
           setShowCreateModal(false)
-          if (createdId && user) {
-            try {
-              setEventLoading(true)
-              setEventError('')
-              setEventData(null)
-              const r = await fetch(`${API}/events/${createdId}`, { credentials: 'include' })
-              if (!r.ok) throw new Error('not_found')
-              const j: EventDetail = await r.json()
-              setEventData(j)
-              setShowEventModal(true)
-              const firstAvailable = (j.ticketTypes || []).find((tt) => Number(tt.quantity || 0) > 0)
-              setSelectedTT(firstAvailable?.id || '')
-              setQty(1)
-            } catch { /* ignore */ }
-            finally { setEventLoading(false) }
-          }
         }}
       />
 

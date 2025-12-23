@@ -21,7 +21,7 @@ export async function getTicketTypes(eventId: string): Promise<Array<{ id: strin
   return fetchJSON(`${API_URL}/events/${eventId}/ticket-types`)
 }
 
-export async function createEvent(payload: { title: string; description: string; location: string; startDate: string; startTime?: string; capacity: number }): Promise<{ id: string }> {
+export async function createEvent(payload: { title: string; description: string; location: string; startDate: string; startTime?: string; endDate?: string; endTime?: string; capacity: number }): Promise<{ id: string }> {
   return fetchJSON(`${API_URL}/events`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
   })

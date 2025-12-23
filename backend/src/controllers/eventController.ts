@@ -8,6 +8,7 @@ import { prisma } from '../prisma'
 import { isAdmin, isOwner } from '../utils/authz'
 import { createEventSchema, updateEventSchema } from '../utils/validation'
 import { logWarn } from '../utils/logger'
+import { parseDateParts, parseTimeParts } from '../utils/dateParsers'
 
 type AuthedRequest = Request & { user: { sub: string; role: Role; sid?: string } }
 type UploadRequest = AuthedRequest & { file?: Express.Multer.File }
@@ -21,13 +22,46 @@ function toSlug(s: string) {
     .replaceAll(/(?:^-+)|(?:-+$)/g, '')
 }
 
+function prepareUpdateData(body: any, existing: any) {
+  const data: any = { ...body }
+  if ('startTime' in data) delete data.startTime
+
+  if (data.startDate) {
+    const dParts = parseDateParts(String(data.startDate))
+    if (dParts) {
+      let hh = 0, mm = 0
+      if (typeof body.startTime === 'string') {
+        const tParts = parseTimeParts(body.startTime)
+        if (tParts) { hh = tParts.hh; mm = tParts.mm }
+      }
+      data.startDate = new Date(dParts.y, dParts.mo - 1, dParts.d, hh, mm, 0, 0)
+      data.endDate = new Date(dParts.y, dParts.mo - 1, dParts.d, 23, 59, 59, 999)
+    }
+  } else if (typeof body.startTime === 'string') {
+    const tParts = parseTimeParts(body.startTime)
+    if (tParts) {
+      const prev = new Date(existing.startDate)
+      data.startDate = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate(), tParts.hh, tParts.mm, 0, 0)
+    }
+  }
+  return data
+}
+
 export const eventController = {
   async list(req: Request, res: Response) {
     const authed = !!(req as any).user
     const q = (req.query.status as string) || 'PUBLISHED'
     const allowed = authed ? ['PUBLISHED', 'DRAFT', 'CANCELED', 'FINALIZED'] : ['PUBLISHED', 'FINALIZED']
-    const status = allowed.includes(q) ? (q as any) : 'PUBLISHED'
-    const events = await eventService.listEvents(status)
+    
+    let status: string | string[] = 'PUBLISHED'
+    if (q.includes(',')) {
+      const parts = q.split(',').map(s => s.trim()).filter(s => allowed.includes(s))
+      if (parts.length > 0) status = parts
+    } else {
+      status = allowed.includes(q) ? q : status
+    }
+
+    const events = await eventService.listEvents(status as any)
     res.json(events)
   },
 
@@ -86,22 +120,26 @@ export const eventController = {
   async create(req: AuthedRequest, res: Response) {
     try {
       const body = createEventSchema.parse(req.body)
-      const raw = String(body.startDate)
-      let y = 0, mo = 0, d = 0
-      const m1 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
-      if (m1) {
-        y = Number(m1[1] || 0); mo = Number(m1[2] || 0); d = Number(m1[3] || 0)
-      } else {
-        const m2 = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
-        y = Number(m2?.[3] || 0); mo = Number(m2?.[2] || 0); d = Number(m2?.[1] || 0)
+      
+      const toDateBRT = (dStr: string, tStr?: string) => {
+        const dp = parseDateParts(dStr)
+        if (!dp) return new Date()
+        let h = 0, m = 0
+        if (tStr) {
+          const tp = parseTimeParts(tStr)
+          if (tp) { h = tp.hh; m = tp.mm }
+        }
+        return new Date(Date.UTC(dp.y, dp.mo - 1, dp.d, h + 3, m, 0, 0))
       }
-      let hh = 0, mm = 0
-      if (typeof body.startTime === 'string') {
-        const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
-        if (tm) { hh = Number(tm[1] || 0); mm = Number(tm[2] || 0) }
+
+      const start = toDateBRT(String(body.startDate), String(body.startTime))
+      const end = toDateBRT(String(body.endDate), String(body.endTime))
+      
+      if (start.getTime() < Date.now()) {
+        const details = [{ path: ['startDate'], message: 'date_in_past' }]
+        return res.status(400).json({ error: 'invalid_body', details })
       }
-      const start = new Date(y, mo - 1, d, hh, mm, 0, 0)
-      const end = new Date(y, mo - 1, d, 23, 59, 59, 999)
+
       const event = await eventService.createEvent({
         title: body.title,
         description: body.description,
@@ -128,33 +166,7 @@ export const eventController = {
 
     try {
       const body = updateEventSchema.parse(req.body)
-      const data: any = { ...body }
-      if ('startTime' in data) delete data.startTime
-      if (data.startDate) {
-        const raw = String(data.startDate)
-        let y = 0, mo = 0, d = 0
-        const m1 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(raw)
-        if (m1) {
-          y = Number(m1[1] || 0); mo = Number(m1[2] || 0); d = Number(m1[3] || 0)
-        } else {
-          const m2 = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(raw)
-          y = Number(m2?.[3] || 0); mo = Number(m2?.[2] || 0); d = Number(m2?.[1] || 0)
-        }
-        let hh = 0, mm = 0
-        if (typeof body.startTime === 'string') {
-          const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
-          if (tm) { hh = Number(tm[1] || 0); mm = Number(tm[2] || 0) }
-        }
-        data.startDate = new Date(y, mo - 1, d, hh, mm, 0, 0)
-        data.endDate = new Date(y, mo - 1, d, 23, 59, 59, 999)
-      } else if (typeof body.startTime === 'string') {
-        const tm = /^(\d{2}):(\d{2})$/.exec(body.startTime)
-        if (tm) {
-          const hh = Number(tm[1] || 0), mm = Number(tm[2] || 0)
-          const prev = new Date(existing.startDate)
-          data.startDate = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate(), hh, mm, 0, 0)
-        }
-      }
+      const data = prepareUpdateData(body, existing)
 
       const finalStart = data.startDate ? new Date(data.startDate) : new Date(existing.startDate)
       const finalEnd = data.endDate ? new Date(data.endDate) : new Date(existing.endDate)

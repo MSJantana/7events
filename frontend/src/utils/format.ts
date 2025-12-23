@@ -40,3 +40,21 @@ export function fmtDateLine(iso?: string) {
     return `${cap(weekClean)}, ${day} de ${cap(monthClean)} às ${time}`
   } catch { return iso }
 }
+
+export function fmtEventDuration(startIso?: string, endIso?: string) {
+  if (!startIso) return ''
+  try {
+    const fmt = (iso: string) => {
+      const d = toLocalDateInternal(iso)
+      const day = d.toLocaleDateString('pt-BR', { day: '2-digit' })
+      const month = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+      const year = d.getFullYear()
+      const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      return `${day} ${month} - ${year} • ${time}`
+    }
+    const start = fmt(startIso)
+    if (!endIso) return start
+    const end = fmt(endIso)
+    return `${start} > ${end}`
+  } catch { return startIso }
+}
