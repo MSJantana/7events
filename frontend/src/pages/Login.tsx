@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../index.css'
 import { palette } from '../theme/palette'
 import EventsCarousel from '../components/EventsCarousel'
 import { useToast } from '../hooks/useToast'
-import LoginModal from '../components/modals/LoginModal'
-import { isValidEmail, isStrongPassword } from '../utils/validation'
-import { translateError } from '../services/api'
+import AuthModal from '../components/modals/AuthModal'
 import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
 import MyEventsModal from '../components/modals/MyEventsModal'
@@ -16,10 +14,6 @@ import Header from '../components/Header'
 import Footer from '../components/Footer'
 import type { EventSummary, EventDetail, User } from '../types'
 
- 
-
- 
-
 export default function Login() {
   const API = useMemo(() => (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000', [])
   const navigate = useNavigate()
@@ -27,17 +21,7 @@ export default function Login() {
   const buySlug = searchParams.get('buy') || ''
   const buyId = searchParams.get('buyId') || ''
   
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [emailError, setEmailError] = useState('')
-  const [passwordError, setPasswordError] = useState('')
-  const [name, setName] = useState('')
-  const [nameError, setNameError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<{ text: string, kind: 'ok' | 'err' | '' }>({ text: '', kind: '' })
   const [showModal, setShowModal] = useState(false)
-  const [showEmailForm, setShowEmailForm] = useState(false)
-  const [showRegister, setShowRegister] = useState(false)
   const [showEventModal, setShowEventModal] = useState(false)
   const [eventLoading, setEventLoading] = useState(false)
   const [eventError, setEventError] = useState('')
@@ -45,7 +29,6 @@ export default function Login() {
   const [selectedTT, setSelectedTT] = useState<string>('')
   const [qty, setQty] = useState<number>(1)
 
-  
   const [user, setUser] = useState<User | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showMyEvents, setShowMyEvents] = useState(false)
@@ -85,6 +68,26 @@ export default function Login() {
     })()
     return () => { cancelled = true }
   }, [API])
+
+  useEffect(() => {
+    if (authLoading) return
+    const pending = sessionStorage.getItem('auth_pending')
+    const errorParam = searchParams.get('error')
+    if (pending || errorParam) {
+      if (!user) {
+        setShowModal(true)
+        if (errorParam) {
+          show({ text: 'Falha na autenticação: ' + errorParam, kind: 'err' })
+          setSearchParams(prev => {
+             const next = new URLSearchParams(prev)
+             next.delete('error')
+             return next
+          }, { replace: true })
+        }
+      }
+      sessionStorage.removeItem('auth_pending')
+    }
+  }, [authLoading, user, searchParams, show, setSearchParams])
 
   useEffect(() => {
     const openBySlug = async (slug: string) => {
@@ -143,10 +146,10 @@ export default function Login() {
     const param = buyId || buySlug
     if (!param) return
     if (authLoading) return
-    if (!user) { setShowModal(true); setShowEmailForm(false); return }
+    if (!user) { setShowModal(true); return }
     if (buyId) openById(buyId)
     else openBySlug(buySlug)
-  }, [API, buySlug, buyId, user, authLoading])
+  }, [API, buySlug, buyId, user, authLoading, setSearchParams])
 
   useEffect(() => {
     if (!Array.isArray(publishedEvents) || publishedEvents.length <= 1) return
@@ -174,23 +177,20 @@ export default function Login() {
     show({ text: 'Eventos atualizados', kind: 'ok' })
   }
 
-
-
   return (
     <div style={{ height: '100vh', background: palette.bg, display: 'flex', flexDirection: 'column', position: 'relative', boxSizing: 'border-box', paddingTop: 100, overflow: 'hidden' }}>
       <Header
         user={user}
-        onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowModal(true); setShowEmailForm(false) } }}
-        onOpenMyEvents={() => { if (user) { setShowMyEvents(true) } else { setShowModal(true); setShowEmailForm(false) } }}
-        onOpenMyTickets={() => { if (user) { setShowMyTickets(true) } else { setShowModal(true); setShowEmailForm(false) } }}
-        onLoginOpen={() => { setShowModal(true); setShowEmailForm(false) }}
+        onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowModal(true) } }}
+        onOpenMyEvents={() => { if (user) { setShowMyEvents(true) } else { setShowModal(true) } }}
+        onOpenMyTickets={() => { if (user) { setShowMyTickets(true) } else { setShowModal(true) } }}
+        onLoginOpen={() => { setShowModal(true) }}
         onLogout={async () => { try { await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' }); setUser(null); show({ text:'Sessão encerrada', kind:'ok' }) } catch { show({ text:'Falha ao sair', kind:'err' }) } }}
         onMakeOrder={() => {
           const active = publishedEvents[activeIndex]
-          if (!active) { if (!user) { setShowModal(true); setShowEmailForm(false) } ; return }
+          if (!active) { if (!user) { setShowModal(true) } ; return }
           if (!user) {
             setShowModal(true)
-            setShowEmailForm(false)
             const next = new URLSearchParams(searchParams)
             next.set('buyId', active.id)
             setSearchParams(next)
@@ -232,7 +232,6 @@ export default function Login() {
             onOpenEvent={(ev) => {
               if (!user) {
                 setShowModal(true)
-                setShowEmailForm(false)
                 const next = new URLSearchParams(searchParams)
                 next.set('buyId', ev.id)
                 setSearchParams(next)
@@ -245,93 +244,18 @@ export default function Login() {
           />
         </div>
       </section>
-      <LoginModal
+
+      <AuthModal
         open={showModal}
-        API={API}
+        onClose={() => setShowModal(false)}
         buySlug={buySlug}
         buyId={buyId}
-        onClose={() => setShowModal(false)}
-        email={email}
-        password={password}
-        emailError={emailError}
-        passwordError={passwordError}
-        showPass={showEmailForm}
-        showRegister={showRegister}
-        loading={loading}
-        status={status}
-        setEmail={setEmail}
-        setPassword={setPassword}
-        setEmailError={setEmailError}
-        setPasswordError={setPasswordError}
-        setShowPass={(v)=> setShowEmailForm(v)}
-        setShowRegister={(v)=> setShowRegister(v)}
-        name={name}
-        nameError={nameError}
-        setName={setName}
-        setNameError={setNameError}
-        onLocalLogin={async () => {
-          setStatus({ text: '', kind: '' })
-          function setStatusTemp(text: string, kind: 'ok' | 'err', ms = 5000) {
-            setStatus({ text, kind })
-            setTimeout(() => setStatus({ text: '', kind: '' }), ms)
-          }
-          if (!validateCredentials(email, password, setEmailError, setPasswordError)) { setStatusTemp('Corrija os campos', 'err'); return }
-          setLoading(true)
-          try {
-            const resp = await fetch(`${API}/auth/local/login`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password })
-            })
-            if (!resp.ok) {
-              const j = await resp.json().catch(() => ({}))
-              setStatusTemp(translateError(j?.error || 'local_login_failed'), 'err'); return
-            }
-            await persistAccessTokenFrom(resp)
-            await loadWhoami(API, setUser)
-            setShowModal(false)
-            setStatusTemp('Logado com sucesso', 'ok')
-            const next = buyId ? `/?buyId=${encodeURIComponent(buyId)}` : (buySlug ? `/?buy=${encodeURIComponent(buySlug)}` : '/')
-            navigate(next, { replace: true })
-          } catch {
-            setStatusTemp('Falha no login', 'err')
-          } finally { setLoading(false) }
-        }}
-        onLocalRegister={async () => {
-          setStatus({ text: '', kind: '' })
-          function setStatusTemp(text: string, kind: 'ok' | 'err', ms = 5000) {
-            setStatus({ text, kind })
-            setTimeout(() => setStatus({ text: '', kind: '' }), ms)
-          }
-          const eOk = isValidEmail(email)
-          const pOk = isStrongPassword(password)
-          const nOk = !!name
-          setEmailError(eOk ? '' : 'Email inválido')
-          setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
-          setNameError(nOk ? '' : 'Nome obrigatório')
-          if (!(eOk && pOk && nOk)) { setStatusTemp('Corrija os campos', 'err'); return }
-          setLoading(true)
-          try {
-            const r = await fetch(`${API}/auth/local/register`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, name, password })
-            })
-            if (!r.ok) {
-              const j = await r.json().catch(() => ({}))
-              setStatusTemp(translateError(j?.error || 'local_register_failed'), 'err'); return
-            }
-            const login = await fetch(`${API}/auth/local/login`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password })
-            })
-            if (!login.ok) {
-              const je = await login.json().catch(() => ({}))
-              setStatusTemp(translateError(je?.error || 'local_login_failed'), 'err'); return
-            }
-            await loadWhoami(API, setUser)
-            setShowModal(false)
-            setStatusTemp('Conta criada e logado', 'ok')
-            const next = buyId ? `/?buyId=${encodeURIComponent(buyId)}` : (buySlug ? `/?buy=${encodeURIComponent(buySlug)}` : '/')
-            navigate(next, { replace: true })
-          } catch {
-            setStatusTemp('Falha no cadastro', 'err')
-          } finally { setLoading(false) }
+        onLoggedIn={(u) => {
+          setUser(u)
+          let next = '/'
+          if (buyId) next = `/?buyId=${encodeURIComponent(buyId)}`
+          else if (buySlug) next = `/?buy=${encodeURIComponent(buySlug)}`
+          navigate(next, { replace: true })
         }}
       />
 
@@ -351,8 +275,6 @@ export default function Login() {
         onSelectTT={(id)=> setSelectedTT(id)}
         onChangeQty={(n)=> setQty(n)}
       />
-
-      {/* removido EventDetailModal */}
 
       <CreateEventModal
         open={showCreateModal}
@@ -388,37 +310,3 @@ export default function Login() {
   )
 }
 
-
-function validateCredentials(
-  email: string,
-  password: string,
-  setEmailError: Dispatch<SetStateAction<string>>,
-  setPasswordError: Dispatch<SetStateAction<string>>
-) {
-  const eOk = isValidEmail(email)
-  const pOk = isStrongPassword(password)
-  setEmailError(eOk ? '' : 'Email inválido')
-  setPasswordError(pOk ? '' : 'Senha deve ter 8+ e incluir maiúscula, minúscula e dígito')
-  return eOk && pOk
-}
-
-async function persistAccessTokenFrom(resp: Response) {
-  try {
-    const jr = await resp.json().catch(() => ({}))
-    if (jr?.accessToken) {
-      try { globalThis.localStorage.setItem('access_token', jr.accessToken) } catch { void 0 }
-    }
-  } catch { void 0 }
-}
-
-async function loadWhoami(API: string, setUser: Dispatch<SetStateAction<User | null>>) {
-  try {
-    const w = await fetch(`${API}/auth/whoami`, { credentials: 'include' })
-    if (!w.ok) return
-    const j = await w.json()
-    if (j?.accessToken) {
-      try { globalThis.localStorage.setItem('access_token', j.accessToken) } catch { void 0 }
-    }
-    if (j?.user) setUser({ id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role })
-  } catch { setUser(u => u) }
-}

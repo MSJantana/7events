@@ -451,8 +451,28 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     })
   }
   return (
-    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
-      <div className={styles.modal}>      
+    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) handleClose() }}>
+      <div className={styles.modal} style={{ position: 'relative' }}>
+        <button 
+          onClick={handleClose} 
+          style={{ 
+            position: 'absolute', 
+            top: 24, 
+            right: 24, 
+            background: 'none', 
+            border: 'none', 
+            fontSize: 26, 
+            fontWeight: 800, 
+            color: '#dc2626', 
+            cursor: 'pointer', 
+            zIndex: 10,
+            padding: 0,
+            lineHeight: 1
+          }}
+          aria-label="Fechar"
+        >
+          ✕
+        </button>      
         {StepperUI(step)}
         <div className={styles.section}>
           <div className={styles.content}>

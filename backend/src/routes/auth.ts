@@ -86,11 +86,19 @@ router.get('/google', async (_req: Request, res: Response) => {
 router.get('/google/callback', async (req: Request, res: Response) => {
   try {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
-      return res.status(500).json({ error: 'google_env_missing' })
+      logError('google_env_missing', { ip: req.ip })
+      return res.redirect(`${env.FRONTEND_URL}/login?error=configuration_error`)
+    }
+    const error = req.query.error as string
+    if (error) {
+      logInfo('google_auth_error_callback', { error, ip: req.ip })
+      return res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent(error)}`)
     }
     const code = req.query.code as string
     logInfo('google_code_received', { codeLength: code ? code.length : 0 })
-    if (!code) return res.status(400).json({ error: 'code_required' })
+    if (!code) {
+      return res.redirect(`${env.FRONTEND_URL}/login?error=no_code`)
+    }
     const ip = req.ip
     const result = await handleGoogleCallback(code, ip)
     if (req.query.raw) {
@@ -125,8 +133,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     return res.redirect(redirect)
   } catch (e: any) {
     logError('google_callback_failed', { error: e, ip: req.ip, clientId: env.GOOGLE_CLIENT_ID, redirectUri: env.GOOGLE_REDIRECT_URI })
-    const details = e?.response?.data || e?.message || 'unknown_error'
-    return res.status(500).json({ error: 'google_callback_failed', details })
+
+    const redirect = `${env.FRONTEND_URL}/login?error=google_callback_failed`
+    return res.redirect(redirect)
   }
 })
 

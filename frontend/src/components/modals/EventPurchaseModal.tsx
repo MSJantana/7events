@@ -8,7 +8,7 @@ import styles from './modal.module.css'
 import type { NoticeStyles } from '../common/Notice'
 import { renderNotice } from '../common/Notice'
 import Stepper from './Stepper'
-import TicketList from './TicketList'
+import TicketTypeSelectionList from '../TicketTypeSelectionList'
 import PaymentSection from './PaymentSection'
 import ConfirmationSection from './ConfirmationSection'
 import QuantityInput from './QuantityInput'
@@ -78,12 +78,11 @@ function TicketsPanel(p: Readonly<PurchaseProps>) {
     <div style={{ marginTop: 10 }}>
       <div style={{ fontWeight:700, marginBottom:8 }}>Ingressos</div>
       {hasTickets ? (
-        <TicketList tickets={p.tickets} selectedTT={p.selectedTT} onSelectTT={p.onSelectTT} highlightIds={p.highlightIds} />
+        <TicketTypeSelectionList tickets={p.tickets} selectedTT={p.selectedTT} onSelectTT={p.onSelectTT} highlightIds={p.highlightIds} />
       ) : (
         notice('info', 'Nenhum ingresso disponível para este evento')
       )}
-      <div className={styles.actions} style={{ marginTop:10 }}>
-        <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onClose} style={{ marginRight:'auto' }}>Fechar</button>
+      <div className={styles.actions} style={{ marginTop:10, justifyContent: 'flex-start', gap: 12 }}>
         {hasTickets ? <QuantityInput qty={p.qty} maxQty={p.maxQty} onChangeQty={p.onChangeQty} /> : null}
         {hasTickets ? (
           <ContinueButton
@@ -442,7 +441,27 @@ useEffect(() => {
   }
   return (
     <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target && step!==2) handleClose() }}>
-      <div className={styles.modal}>     
+      <div className={styles.modal} style={{ position: 'relative' }}>
+        <button 
+          onClick={handleClose} 
+          style={{ 
+            position: 'absolute', 
+            top: 24, 
+            right: 24, 
+            background: 'none', 
+            border: 'none', 
+            fontSize: 26, 
+            fontWeight: 800, 
+            color: '#dc2626', 
+            cursor: 'pointer', 
+            zIndex: 10,
+            padding: 0,
+            lineHeight: 1
+          }}
+          aria-label="Fechar"
+        >
+          ✕
+        </button>     
         {publishedActive(data, expiredEvent) ? <Stepper step={step} /> : null}
         <div className={styles.section}><PurchaseContent {...contentProps} /></div>
       </div>

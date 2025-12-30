@@ -1,5 +1,5 @@
 <svg width="320" height="80" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="320" height="80" rx="16" fill="#0F172A"/>
+  <rect width="320" height="80" rx="40" fill="#0F172A"/>
 
   <g transform="translate(16,12)">
     <rect x="0" y="0" width="64" height="56" rx="14" fill="url(#cardGradient)"/>
@@ -13,7 +13,7 @@
 
   <g transform="translate(96,26)">
     <text x="0" y="20" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="26" font-weight="800" fill="#6366F1">7</text>
-    <text x="20" y="20" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="600" fill="#F9FAFB">Events</text>
+    <text x="20" y="20" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="600" fill="#F9FAFB">EVENTS</text>
     <text x="0" y="40" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" letter-spacing="0.08em" fill="#9CA3AF">GESTÃO INTELIGENTE DE EVENTOS</text>
   </g>
 

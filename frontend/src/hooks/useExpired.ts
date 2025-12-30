@@ -11,8 +11,10 @@ function useNow(intervalMs = 60000) {
   return now
 }
 
-export function useExpired(startDate?: string, status?: EventStatus, intervalMs = 60000) {
+export function useExpired(endDate?: string, status?: EventStatus, intervalMs = 60000) {
   const now = useNow(intervalMs)
-  const expired = !!startDate && toLocalDate(startDate, true).getTime() <= now
+  // Se existe endDate, usamos ele para validar se o evento expirou
+  // Caso contrário, usamos o status FINALIZED como fallback
+  const expired = !!endDate && toLocalDate(endDate, true).getTime() <= now
   return expired || status === 'FINALIZED'
 }

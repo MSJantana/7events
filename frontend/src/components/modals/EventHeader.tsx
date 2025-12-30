@@ -23,7 +23,7 @@ function TitleRow({ data, showBadge, justify }: Readonly<{ data: EventDetail; sh
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent: justify }}>
       <div style={{ fontSize: 22, fontWeight: 800 }}>{data.title}</div>
-      {showBadge ? <FinalizadoBadge startDate={data.startDate} status={data.status} /> : null}
+      {showBadge ? <FinalizadoBadge endDate={data.endDate} status={data.status} /> : null}
     </div>
   )
 }

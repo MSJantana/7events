@@ -127,7 +127,7 @@ export default function EventsCarousel({ events, activeIndex, onSelect, onOpenEv
                 {events[activeIndex]?.title || ''}
               </div>
               <FinalizadoBadge
-                startDate={events[activeIndex]?.startDate}
+                endDate={events[activeIndex]?.endDate}
                 status={events[activeIndex]?.status}
               />
             </div>

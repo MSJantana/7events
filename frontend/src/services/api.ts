@@ -14,6 +14,11 @@ export async function fetchJSON<T = unknown>(url: string, init?: RequestInit): P
     err.status = r.status
     err.code = code
     if (body && typeof body === 'object') err.details = (body as { details?: unknown }).details
+
+    if ((r.status === 401 || code === 'unauthorized') && token) {
+      globalThis.dispatchEvent(new Event('session-expired'))
+    }
+
     throw err
   }
   return r.json() as Promise<T>
