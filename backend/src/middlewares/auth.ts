@@ -3,6 +3,15 @@ import { Request, Response, NextFunction } from 'express'
 import { env } from '../config/env'
 import { prisma } from '../prisma'
 import { audit } from '../utils/audit'
+import { Role } from '@prisma/client'
+
+export type JwtUser = {
+  sub: string
+  role: Role
+  sid?: string
+}
+
+export type AuthRequest = Request & { user?: JwtUser }
 
 function parseCookies(header?: string) {
   return Object.fromEntries(

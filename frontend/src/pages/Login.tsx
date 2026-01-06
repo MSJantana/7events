@@ -9,6 +9,7 @@ import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
 import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
+import DevicesModal from '../components/modals/DevicesModal'
 import EditEventModal from '../components/modals/EditEventModal'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
@@ -32,6 +33,7 @@ export default function Login() {
   const [user, setUser] = useState<User | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showMyEvents, setShowMyEvents] = useState(false)
+  const [showDevicesModal, setShowDevicesModal] = useState(false)
   const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string } | null>(null)
   const [showMyTickets, setShowMyTickets] = useState(false)
   const [events, setEvents] = useState<Array<{ id: string; title: string; description?: string; location: string; startDate: string; endDate: string; status: 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'; imageUrl?: string | null }>>([])
@@ -184,6 +186,7 @@ export default function Login() {
         onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowModal(true) } }}
         onOpenMyEvents={() => { if (user) { setShowMyEvents(true) } else { setShowModal(true) } }}
         onOpenMyTickets={() => { if (user) { setShowMyTickets(true) } else { setShowModal(true) } }}
+        onOpenDevices={() => { if (user) { setShowDevicesModal(true) } else { setShowModal(true) } }}
         onLoginOpen={() => { setShowModal(true) }}
         onLogout={async () => { try { await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' }); setUser(null); show({ text:'Sessão encerrada', kind:'ok' }) } catch { show({ text:'Falha ao sair', kind:'err' }) } }}
         onMakeOrder={() => {
@@ -294,6 +297,7 @@ export default function Login() {
       />
 
       <MyTicketsModal open={showMyTickets} onClose={() => setShowMyTickets(false)} />
+      <DevicesModal open={showDevicesModal} onClose={() => setShowDevicesModal(false)} />
 
       <EditEventModal
         open={!!editEvent}

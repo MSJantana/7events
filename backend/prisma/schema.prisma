@@ -42,6 +42,7 @@ model Event {
   tickets     Ticket[]
   orders      Order[]
   payments    Payment[]
+  checkinDevices CheckinDevice[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   userId      String
@@ -105,6 +106,31 @@ model Ticket {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   payment      Payment?
+  code         String       @unique @default(uuid())
+  validationLogs TicketValidationLog[]
+}
+
+model TicketValidationLog {
+  id        String   @id @default(uuid())
+  ticketId  String
+  deviceId  String?
+  status    String
+  message   String?
+  createdAt DateTime @default(now())
+  
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  device    CheckinDevice? @relation(fields: [deviceId], references: [id])
+}
+
+model CheckinDevice {
+  id        String   @id @default(uuid())
+  name      String
+  apiKey    String   @unique
+  eventId   String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  logs      TicketValidationLog[]
+  event     Event?   @relation(fields: [eventId], references: [id])
 }
 
 enum TicketStatus {

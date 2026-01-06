@@ -6,5 +6,15 @@ export type EventSummary = { id: string; title: string; description?: string; lo
 export type EventDetail = EventSummary & { capacity: number; minPrice: number; ticketTypes: { id: string; name: string; price: number; quantity: number }[] }
 
 export type TicketType = { id: string; name: string; price: number; quantity: number }
-export type Ticket = { id?: string; eventId?: string; status: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED'; ticketType?: { name?: string; price?: number } }
-export type Order = { id: string; status: 'PENDING' | 'PAID' | 'CANCELED' | 'REFUNDED'; createdAt?: string; tickets?: Array<{ id?: string; eventId?: string; status?: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED'; ticketType?: { name?: string; price?: number; createdAt?: string; updatedAt?: string } }> }
+export type Ticket = { id?: string; code?: string; eventId?: string; status: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED' | 'USED' | 'INVALID'; ticketType?: { name?: string; price?: number } }
+export type Order = { id: string; status: 'PENDING' | 'PAID' | 'CANCELED' | 'REFUNDED'; createdAt?: string; tickets?: Array<{ id?: string; code?: string; eventId?: string; status?: 'WAITING' | 'ACTIVE' | 'CANCELED' | 'REFUNDED' | 'USED' | 'INVALID'; ticketType?: { name?: string; price?: number; createdAt?: string; updatedAt?: string } }> }
+
+export type Device = {
+  id: string
+  name: string
+  eventId: string | null
+  enabled: boolean
+  apiKey: string
+  createdAt: string
+  event?: { title: string }
+}

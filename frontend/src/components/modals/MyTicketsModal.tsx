@@ -13,11 +13,29 @@ export default function MyTicketsModal({ open, onClose }: Readonly<{ open: boole
   const [orders, setOrders] = useState<Order[]>([])
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set())
 
+  const handleManualRefresh = async () => {
+    try { setOrders(await getMyOrders()) } catch { setOrders([]) }
+  }
+
   useEffect(() => {
     if (!open) { return }
-    ;(async () => {
-      try { setOrders(await getMyOrders()) } catch { setOrders([]) }
-    })()
+    let mounted = true
+
+    const load = async () => {
+      try {
+        const data = await getMyOrders()
+        if (mounted) setOrders(data)
+      } catch {
+        if (mounted) setOrders([])
+      }
+    }
+
+    load()
+    const timer = setInterval(load, 3000)
+    return () => {
+      mounted = false
+      clearInterval(timer)
+    }
   }, [open])
 
   useEffect(() => {
@@ -42,7 +60,7 @@ export default function MyTicketsModal({ open, onClose }: Readonly<{ open: boole
         price: Number(t.ticketType?.price || 0),
         status: t.status || o.status,
         purchaseDate: o.createdAt || '',
-        code: o.id || ''
+        code: t.code || t.id || ''
       }
     })
   })
@@ -76,9 +94,17 @@ export default function MyTicketsModal({ open, onClose }: Readonly<{ open: boole
   return (
     <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
       <div className={styles.modal} style={{ maxWidth: '1100px', width: '95%' }}>     
-        <div className={styles.section}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-             <h2 className={styles.title}>Meus Ingressos</h2>
+        <div className={styles.section} style={{ padding: '16px 22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+               <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Meus Ingressos</h2>
+               <button 
+                onClick={handleManualRefresh}
+                title="Atualizar lista"
+                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center' }}>
+                 <span className="mi" style={{ fontSize: 20 }}>refresh</span>
+               </button>
+             </div>
              <button className={styles.close} onClick={onClose}>✕</button>
           </div>
           {tickets.length === 0 ? (
@@ -119,7 +145,7 @@ export default function MyTicketsModal({ open, onClose }: Readonly<{ open: boole
                     </div>
                     
                     {isExpanded && (
-                      <div style={{ padding: '0 20px 20px 20px', background: '#fff' }}>
+                      <div style={{ padding: '0 20px 20px 20px', background: '#fff', maxHeight: '400px', overflowY: 'auto' }}>
                         <TicketList tickets={group.tickets} />
                       </div>
                     )}

@@ -15,6 +15,7 @@ import AuthModal from '../components/modals/AuthModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
 import MyEventsModal from '../components/modals/MyEventsModal'
 import MyTicketsModal from '../components/modals/MyTicketsModal'
+import DevicesModal from '../components/modals/DevicesModal'
 import EditEventModal from '../components/modals/EditEventModal'
 import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import Footer from '../components/Footer'
@@ -31,6 +32,7 @@ export default function SevenEventsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showMyEvents, setShowMyEvents] = useState(false)
   const [showMyTickets, setShowMyTickets] = useState(false)
+  const [showDevicesModal, setShowDevicesModal] = useState(false)
   const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string; imageUrl?: string | null } | null>(null)
   const [eventLoading, setEventLoading] = useState(false)
   const [eventError, setEventError] = useState('')
@@ -138,6 +140,7 @@ export default function SevenEventsPage() {
         onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowAuthModal(true) } }}
         onOpenMyEvents={() => { if (user) { setShowMyEvents(true) } else { setShowAuthModal(true) } }}
         onOpenMyTickets={() => { if (user) { setShowMyTickets(true) } else { setShowAuthModal(true) } }}
+        onOpenDevices={() => { if (user) { setShowDevicesModal(true) } else { setShowAuthModal(true) } }}
         onLoginOpen={() => { setShowAuthModal(true) }}
         onLogout={async () => { await logout(); setUser(null) }}
         onMakeOrder={() => { if (user) { handleMakeOrder() } else { setShowAuthModal(true) } }}
@@ -212,6 +215,7 @@ export default function SevenEventsPage() {
         }}
       />
       <MyTicketsModal open={showMyTickets} onClose={() => setShowMyTickets(false)} />
+      <DevicesModal open={showDevicesModal} onClose={() => setShowDevicesModal(false)} />
       <EditEventModal
         key={editEvent?.id || 'none'}
         open={!!editEvent}
