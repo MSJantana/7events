@@ -33,7 +33,7 @@ export const checkinService = {
     }
 
     // 3. Check Event Scope (only if device is bound to an event)
-    if (device && device.eventId && device.eventId !== ticket.eventId) {
+    if (device?.eventId && device.eventId !== ticket.eventId) {
       await prisma.ticketValidationLog.create({
         data: {
           ticketId: ticket.id,

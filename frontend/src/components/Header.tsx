@@ -11,6 +11,7 @@ type Props = Readonly<{
   onLoginOpen: () => void
   onLogout: () => Promise<void> | void
   onMakeOrder: () => void
+  onGoHome?: () => void
 }>
 
 import { SevenEventsLogo } from './common/SevenEventsLogo'
@@ -24,6 +25,7 @@ export default function Header({
   onLoginOpen,
   onLogout,
   onMakeOrder,
+  onGoHome,
 }: Props) {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const profileRef = useRef<HTMLDivElement|null>(null)
@@ -67,7 +69,10 @@ export default function Header({
   return (
     <header className={styles.header}>
       <div className={styles.container}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <div 
+          style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
+          onClick={onGoHome}
+        >
           <div className={styles.brand} style={{ display: 'flex', alignItems: 'center' }}>
             <SevenEventsLogo />
           </div>

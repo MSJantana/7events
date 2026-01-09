@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { fmtDate, fmtMoneyBRL } from '../../utils/format'
 import { SevenEventsLogo } from '../common/SevenEventsLogo'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
+import { QrCodePrintIcon } from '../common/QrCodePrintIcon'
+import { QRCode } from 'react-qrcode-logo'
+
+const LOGO_SVG = `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="56" height="56" rx="16" fill="#0F172A" /><path d="M16 12 C 20 9.5, 24 8.5, 28 8.5" stroke="#38BDF8" strokeWidth="2.4" strokeLinecap="round" /><rect x="18" y="22" width="20" height="3.5" rx="1.75" fill="#38BDF8" /><rect x="18" y="30" width="18" height="3.5" rx="1.75" fill="#22C55E" /><rect x="18" y="38" width="14" height="3.5" rx="1.75" fill="#A5B4FC" /><path d="M30 18 H44 L36 44" fill="none" stroke="#F9FAFB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>`
+const LOGO_URI = `data:image/svg+xml;base64,${btoa(LOGO_SVG)}`
 
 export type TicketRowData = {
   id: string
@@ -11,6 +18,8 @@ export type TicketRowData = {
   status: string
   purchaseDate: string
   code: string
+  location?: string
+  startDate?: string
 }
 
 function StatusBadge({ status }: { readonly status: string }) {
@@ -65,6 +74,32 @@ export default function TicketList({ tickets }: { readonly tickets: readonly Tic
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null)
   const selectedTicket = selectedTicketId ? tickets.find(t => t.id === selectedTicketId) || null : null
 
+  const downloadPDF = async () => {
+    const element = document.getElementById('ticket-content')
+    if (!element) return
+    try {
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const canvas = await html2canvas(element, { 
+        scale: 2, 
+        backgroundColor: null, // Transparent to capture border radius nicely if needed, but usually white is safer for PDF
+        useCORS: true,
+        allowTaint: true
+      })
+      const imgData = canvas.toDataURL('image/png')
+      // A4 landscape or custom size? Ticket size is usually smaller. 
+      // Let's make the PDF size match the canvas size for a perfect "ticket" file.
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      })
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
+      pdf.save(`ticket-${selectedTicket?.code || 'event'}.pdf`)
+    } catch (err) {
+      console.error('Failed to download PDF', err)
+    }
+  }
+
   if (!tickets || tickets.length === 0) {
     return <div style={{ padding: 20, textAlign: 'center', color: 'var(--gray)' }}>Nenhum ingresso encontrado.</div>
   }
@@ -76,8 +111,8 @@ export default function TicketList({ tickets }: { readonly tickets: readonly Tic
           <thead>
             <tr style={{ textAlign: 'left', color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               <th style={{ padding: '0 16px', fontWeight: 600 }}>Evento</th>
-            <th style={{ padding: '0 16px', fontWeight: 600 }}>Ingresso</th>
-            <th style={{ padding: '0 16px', fontWeight: 600 }}>Status</th>
+              <th style={{ padding: '0 16px', fontWeight: 600 }}>Ingresso</th>
+              <th style={{ padding: '0 16px', fontWeight: 600 }}>Status</th>
               <th style={{ padding: '0 16px', fontWeight: 600 }}>Data Compra</th>
               <th style={{ padding: '0 16px', fontWeight: 600 }}>Valor</th>
               <th style={{ padding: '0 16px', fontWeight: 600 }}></th>
@@ -114,19 +149,24 @@ export default function TicketList({ tickets }: { readonly tickets: readonly Tic
                 </td>
                 <td style={{ padding: '16px', borderTopRightRadius: 12, borderBottomRightRadius: 12, textAlign: 'right' }}>
                   <button
-                    onClick={() => setSelectedTicketId(t.id)}
-                    title="Ver Ticket e QR Code"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (t.status !== 'WAITING' && t.status !== 'PENDING') {
+                        setSelectedTicketId(t.id)
+                      }
+                    }}
+                    title={['WAITING', 'PENDING'].includes(t.status) ? "Aguardando pagamento" : "Ver Ticket"}
+                    disabled={['WAITING', 'PENDING'].includes(t.status)}
                     style={{
-                      border: 'none', background: '#f3f4f6', cursor: 'pointer', color: '#374151',
-                      width: 32, height: 32, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
+                      border: 'none', background: '#f3f4f6', 
+                      cursor: ['WAITING', 'PENDING'].includes(t.status) ? 'not-allowed' : 'pointer', 
+                      color: ['WAITING', 'PENDING'].includes(t.status) ? '#9ca3af' : '#374151',
+                      width: 32, height: 32, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      padding: 0,
+                      opacity: ['WAITING', 'PENDING'].includes(t.status) ? 0.5 : 1
                     }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="7" height="7"></rect>
-                      <rect x="14" y="3" width="7" height="7"></rect>
-                      <rect x="14" y="14" width="7" height="7"></rect>
-                      <rect x="3" y="14" width="7" height="7"></rect>
-                    </svg>
+                    <QrCodePrintIcon />
                   </button>
                 </td>
               </tr>
@@ -137,56 +177,190 @@ export default function TicketList({ tickets }: { readonly tickets: readonly Tic
 
       {selectedTicket && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(4px)'
-        }} onClick={() => setSelectedTicketId(null)}>
+            position: 'fixed', inset: 0, zIndex: 100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          {/* Backdrop */}
+          <button 
+            type="button"
+            aria-label="Fechar modal"
+            onClick={() => setSelectedTicketId(null)}
+            style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(0,0,0,0.5)',
+              backdropFilter: 'blur(4px)',
+              border: 'none',
+              cursor: 'pointer',
+              width: '100%',
+              height: '100%'
+            }}
+          />
+
+          {/* Content */}
           <div style={{
-            background: '#fff', padding: 32, borderRadius: 24, width: 'min(360px, 90%)',
+            position: 'relative',
+            zIndex: 1,
+            background: 'transparent', 
+            padding: 0, 
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', position: 'relative',
-            animation: 'fadeIn 0.2s ease-out'
-          }} onClick={e => e.stopPropagation()}>
-
-            <button
-              onClick={() => setSelectedTicketId(null)}
-              style={{
-                position: 'absolute', top: 16, right: 16, border: 'none', background: 'transparent',
-                fontSize: 24, color: '#9ca3af', cursor: 'pointer', width: 32, height: 32,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >✕</button>
-
-            <div style={{ transform: 'scale(0.9)' }}>
-              <SevenEventsLogo size={48} />
-            </div>
-
-            <div style={{ textAlign: 'center' }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0, lineHeight: 1.4 }}>{selectedTicket.eventName}</h3>
-              <p style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>{selectedTicket.ticketTypeName}</p>
-            </div>
-
-            <div style={{
-              background: '#fff', padding: 16, borderRadius: 16, border: '2px dashed #e5e7eb',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            
+            {/* TICKET LAYOUT FOR PDF */}
+            <div id="ticket-content" style={{ 
+              width: '800px', 
+              height: '320px', 
+              display: 'flex',
+              filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))'
             }}>
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${selectedTicket.code}`}
-                alt="QR Code"
-                style={{ width: 180, height: 180, borderRadius: 8, display: 'block' }}
-              />
-              <p style={{ fontSize: 12, color: '#6b7280', fontFamily: 'monospace', margin: 0 }}>{selectedTicket.code}</p>
+              {/* Left Side - Event Info */}
+              <div style={{ 
+                flex: 2, 
+                background: '#0F172A', 
+                color: 'white', 
+                borderTopLeftRadius: 24, 
+                borderBottomLeftRadius: 24,
+                padding: '32px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                {/* Background Accent */}
+                <div style={{
+                  position: 'absolute', top: -50, left: -50, width: 200, height: 200,
+                  background: 'radial-gradient(circle, rgba(56,189,248,0.2) 0%, rgba(0,0,0,0) 70%)',
+                  borderRadius: '50%'
+                }} />
+
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 }}>
+                  <div>
+                    <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1.5, color: '#94A3B8', marginBottom: 8 }}>Seven Events</div>
+                    <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>{selectedTicket.eventName}</h1>
+                  </div>
+                  {/* Optional: Event Image if available, or just logo */}
+                  <div style={{ opacity: 0.8 }}>
+                    <div style={{ width: 50, height: 50, border: '2px solid rgba(255,255,255,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <SevenEventsLogo size={36} showText={false} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Event Details */}
+                <div style={{ display: 'flex', gap: 40, zIndex: 1 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>Data e Hora</div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>{selectedTicket.startDate ? fmtDate(selectedTicket.startDate) : 'Data a definir'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>Local</div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>{selectedTicket.location || 'Local a definir'}</div>
+                  </div>
+                </div>
+
+                {/* Footer / Ticket Info */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 24, zIndex: 1 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>Tipo de Ingresso</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#38BDF8' }}>{selectedTicket.ticketTypeName}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                     <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>Valor</div>
+                     <div style={{ fontSize: 18, fontWeight: 600 }}>{fmtMoneyBRL(selectedTicket.price)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider Section */}
+              <div style={{ 
+                width: 0, 
+                position: 'relative', 
+                borderLeft: '2px dashed #CBD5E1', 
+                background: '#F8FAFC',
+                marginTop: 16, marginBottom: 16
+              }}>
+                <div style={{ 
+                  position: 'absolute', top: -16, left: -10, width: 20, height: 20, 
+                  background: 'rgba(0,0,0,0.5)', borderRadius: '50%' 
+                }} />
+                 <div style={{ 
+                  position: 'absolute', bottom: -16, left: -10, width: 20, height: 20, 
+                  background: 'rgba(0,0,0,0.5)', borderRadius: '50%' 
+                }} />
+              </div>
+
+              {/* Right Side - QR Code */}
+              <div style={{ 
+                flex: 1, 
+                background: 'white', 
+                borderTopRightRadius: 24, 
+                borderBottomRightRadius: 24,
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 16
+              }}>
+                 <div style={{ 
+                   padding: 8, 
+                   background: 'white', 
+                   borderRadius: 12,
+                   boxShadow: '0 4px 12px rgba(0,0,0,0.05)' 
+                 }}>
+                   <QRCode 
+                    value={selectedTicket.code} 
+                    size={140}
+                    logoImage={LOGO_URI}
+                    logoWidth={40}
+                    logoHeight={40}
+                    logoOpacity={1}
+                    removeQrCodeBehindLogo={true}
+                    qrStyle="dots"
+                    eyeRadius={8}
+                    fgColor="#0F172A"
+                  />
+                 </div>
+                 <div style={{ textAlign: 'center' }}>
+                   <div style={{ fontSize: 10, color: '#64748B', textTransform: 'uppercase', letterSpacing: 1 }}>Código do Ingresso</div>
+                   <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginTop: 2 }}>{selectedTicket.code}</div>
+                 </div>
+              </div>
             </div>
 
-            <div style={{ width: '100%', textAlign: 'center' }}>
-               <div style={{ display: 'inline-block', marginBottom: 12 }}>
-                 <StatusBadge status={selectedTicket.status} />
-               </div>
-               <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
-                 Apresente este código na entrada do evento.
-               </p>
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 16 }}>
+              <button 
+                onClick={downloadPDF}
+                style={{ 
+                  background: '#38BDF8', color: '#0F172A', border: 'none', 
+                  padding: '12px 24px', borderRadius: 99, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  boxShadow: '0 4px 12px rgba(56,189,248,0.4)',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onFocus={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                onBlur={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <span className="mi">download</span>
+                {' '}Baixar PDF
+              </button>
+              <button 
+                onClick={() => setSelectedTicketId(null)}
+                style={{ 
+                  background: 'white', color: '#0F172A', border: 'none', 
+                  padding: '12px 24px', borderRadius: 99, fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

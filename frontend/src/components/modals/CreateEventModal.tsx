@@ -1,6 +1,6 @@
 import styles from './modal.module.css'
 import type { User } from '../../types'
-import { useEffect, useState, Fragment } from 'react'
+import { useEffect, useState, Fragment, useCallback } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 type StepId = 1 | 2 | 3
 
@@ -276,7 +276,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     return s + q * p
   }, 0)
 
-  function resetState() {
+  const resetState = useCallback(() => {
     setForm({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', endDate: todayYMD(), endTime: '10:00', capacity: '0' })
     setFile(null)
     if (preview) URL.revokeObjectURL(preview)
@@ -284,12 +284,12 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     setTts([])
     setStep(1)
     setCreatedEventId('')
-  }
+  }, [preview])
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     resetState()
     onClose()
-  }
+  }, [onClose, resetState])
 
   useEffect(() => {
     let cancelled = false
@@ -303,7 +303,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     globalThis.addEventListener('keydown', onKey)
     return () => globalThis.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, handleClose])
 
   useEffect(() => {
     if (!open) return

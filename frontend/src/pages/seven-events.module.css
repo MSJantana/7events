@@ -1,8 +1,10 @@
 .page { 
-    min-height: 100vh; 
+    height: 100vh; 
     background: #ffffff; 
     display: flex; 
     flex-direction: column; 
     box-sizing: border-box; 
     padding-top: 100px; 
+    overflow-y: auto;
+    overflow-x: hidden;
  }

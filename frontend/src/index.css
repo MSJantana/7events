@@ -69,6 +69,9 @@ button:focus-visible {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;

@@ -93,7 +93,7 @@ export default function EventDetails() {
   function onBuyClick(){
     const id = data?.id || ''
     if (!user) {
-      navigate(id ? `/login?buyId=${encodeURIComponent(id)}` : `/login?buy=${encodeURIComponent(slug)}`)
+      navigate(id ? `/?buyId=${encodeURIComponent(id)}` : `/?buy=${encodeURIComponent(slug)}`)
       return
     }
     navigate(id ? `/?buyId=${encodeURIComponent(id)}` : `/?buy=${encodeURIComponent(slug)}`)

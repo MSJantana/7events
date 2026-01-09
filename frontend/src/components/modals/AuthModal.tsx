@@ -32,7 +32,13 @@ export default function AuthModal({ open, onClose, onLoggedIn, buySlug, buyId }:
 
   if (!open) return null
 
-  const queryState = buyId ? ('?state=' + encodeURIComponent('buyId:' + buyId)) : (buySlug ? ('?state=' + encodeURIComponent('buy:' + buySlug)) : '')
+  const getQueryState = () => {
+    if (buyId) return '?state=' + encodeURIComponent('buyId:' + buyId)
+    if (buySlug) return '?state=' + encodeURIComponent('buy:' + buySlug)
+    return ''
+  }
+
+  const queryState = getQueryState()
   const googleHref = `${API_URL}/auth/google${queryState}`
 
   return (

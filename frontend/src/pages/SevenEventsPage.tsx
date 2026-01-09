@@ -13,9 +13,9 @@ import { API_URL, api } from '../services/api'
 import type { EventSummary, EventDetail } from '../types'
 import AuthModal from '../components/modals/AuthModal'
 import CreateEventModal from '../components/modals/CreateEventModal'
-import MyEventsModal from '../components/modals/MyEventsModal'
-import MyTicketsModal from '../components/modals/MyTicketsModal'
-import DevicesModal from '../components/modals/DevicesModal'
+import MyTicketsView from '../components/MyTicketsView'
+import DevicesView from '../components/DevicesView'
+import MyEventsView from '../components/MyEventsView'
 import EditEventModal from '../components/modals/EditEventModal'
 import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import Footer from '../components/Footer'
@@ -30,9 +30,7 @@ export default function SevenEventsPage() {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showMyEvents, setShowMyEvents] = useState(false)
-  const [showMyTickets, setShowMyTickets] = useState(false)
-  const [showDevicesModal, setShowDevicesModal] = useState(false)
+  const [view, setView] = useState<'home' | 'tickets' | 'devices' | 'my-events'>('home')
   const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string; imageUrl?: string | null } | null>(null)
   const [eventLoading, setEventLoading] = useState(false)
   const [eventError, setEventError] = useState('')
@@ -116,11 +114,13 @@ export default function SevenEventsPage() {
         searchParams.delete('buy')
         setSearchParams(searchParams)
       }
+    } else if (buyId || buy) {
+      setShowAuthModal(true)
     }
   }, [searchParams, user, setSearchParams])
 
   useEffect(() => {
-    const h: EventListener = () => { setShowMyTickets(true) }
+    const h: EventListener = () => { setView('tickets') }
     ;(globalThis as EventTarget).addEventListener('openMyTickets', h)
     return () => { (globalThis as EventTarget).removeEventListener('openMyTickets', h) }
   }, [])
@@ -128,55 +128,94 @@ export default function SevenEventsPage() {
   useEffect(() => {
     let cancelled = false
     getEventsByStatus('FINALIZED').then((list) => {
-      if (!cancelled && Array.isArray(list)) setFinalizedEvents(list)
+      if (!cancelled && Array.isArray(list)) {
+        const isAdmin = user?.role === 'ADMIN'
+        if (isAdmin) {
+            setFinalizedEvents(list)
+            return
+        }
+        const now = Date.now()
+        const tenDays = 10 * 24 * 60 * 60 * 1000
+        const filtered = list.filter(e => {
+          if (!e.endDate) return true
+          const end = new Date(e.endDate).getTime()
+          return (now - end) <= tenDays
+        })
+        setFinalizedEvents(filtered)
+      }
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [])
+  }, [user])
+
+  function renderContent() {
+    if (view === 'home') {
+      return (
+        <>
+          <EventsCarousel
+            events={events}
+            activeIndex={activeIndex}
+            onSelect={(i) => setActiveIndex(() => i)}
+            onOpenEvent={(ev) => {
+              setActiveIndex(events.findIndex(e => e.id===ev.id))
+              if (user) {
+                void openPurchaseById(ev.id)
+              } else {
+                setShowAuthModal(true)
+                const next = new URLSearchParams(searchParams)
+                next.set('buyId', ev.id)
+                setSearchParams(next)
+              }
+            }}
+          />
+          <FinalizedEventsRow
+            events={finalizedEvents}
+            onOpenEvent={(ev) => {
+               if (user) {
+                 void openPurchaseById(ev.id)
+               } else {
+                  setShowAuthModal(true)
+                  const next = new URLSearchParams(searchParams)
+                  next.set('buyId', ev.id)
+                  setSearchParams(next)
+               }
+            }}
+          />
+        </>
+      )
+    }
+    if (view === 'tickets') return <MyTicketsView />
+    if (view === 'devices') return <DevicesView />
+    
+    return (
+      <MyEventsView
+        onEdit={(ev) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', description: '', imageUrl: ev.imageUrl || null }); }}
+        onPublished={async () => {
+          show({ text: 'Atualizando eventos...', kind: 'ok' })
+          try {
+            const j = await api.publishedEvents()
+            if (Array.isArray(j)) setEvents(j as EventSummary[])
+          } catch { setEvents(e => e) }
+          show({ text: 'Eventos atualizados', kind: 'ok' })
+        }}
+      />
+    )
+  }
 
   return (
     <div className={pageStyles.page} style={{ position: 'relative' }}>
       <Header
         user={user}
         onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowAuthModal(true) } }}
-        onOpenMyEvents={() => { if (user) { setShowMyEvents(true) } else { setShowAuthModal(true) } }}
-        onOpenMyTickets={() => { if (user) { setShowMyTickets(true) } else { setShowAuthModal(true) } }}
-        onOpenDevices={() => { if (user) { setShowDevicesModal(true) } else { setShowAuthModal(true) } }}
+        onOpenMyEvents={() => { if (user) { setView('my-events') } else { setShowAuthModal(true) } }}
+        onOpenMyTickets={() => { if (user) { setView('tickets') } else { setShowAuthModal(true) } }}
+        onOpenDevices={() => { if (user) { setView('devices') } else { setShowAuthModal(true) } }}
         onLoginOpen={() => { setShowAuthModal(true) }}
-        onLogout={async () => { await logout(); setUser(null) }}
+        onLogout={async () => { await logout(); setUser(null); setView('home') }}
         onMakeOrder={() => { if (user) { handleMakeOrder() } else { setShowAuthModal(true) } }}
+        onGoHome={() => setView('home')}
       />
-      <main style={{ flex: 1 }}>
-        <EventsCarousel
-          events={events}
-          activeIndex={activeIndex}
-          onSelect={(i) => setActiveIndex(() => i)}
-          onOpenEvent={(ev) => {
-            setActiveIndex(events.findIndex(e => e.id===ev.id))
-            if (user) {
-              void openPurchaseById(ev.id)
-            } else {
-              setShowAuthModal(true)
-              const next = new URLSearchParams(searchParams)
-              next.set('buyId', ev.id)
-              setSearchParams(next)
-            }
-          }}
-        />
-        <FinalizedEventsRow
-          events={finalizedEvents}
-          onOpenEvent={(ev) => {
-             // Finalized events usually just show details, but logic for purchase modal handles "finalized" check
-             // Maybe we just open it and the modal shows "Finished"
-             if (user) {
-               void openPurchaseById(ev.id)
-             } else {
-                setShowAuthModal(true)
-                const next = new URLSearchParams(searchParams)
-                next.set('buyId', ev.id)
-                setSearchParams(next)
-             }
-          }}
-        />
+      <main style={{ flex: 1, paddingBottom: '80px' }}>
+        {renderContent()}
       </main>
 
       {/* removido EventDetailModal */}
@@ -201,21 +240,6 @@ export default function SevenEventsPage() {
           }
         }}
       />
-      <MyEventsModal
-        open={showMyEvents}
-        onClose={() => setShowMyEvents(false)}
-        onEdit={(ev) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', description: '', imageUrl: ev.imageUrl || null }); setShowMyEvents(false) }}
-        onPublished={async () => {
-          show({ text: 'Atualizando eventos...', kind: 'ok' })
-          try {
-            const j = await api.publishedEvents()
-            if (Array.isArray(j)) setEvents(j as EventSummary[])
-          } catch { setEvents(e => e) }
-          show({ text: 'Eventos atualizados', kind: 'ok' })
-        }}
-      />
-      <MyTicketsModal open={showMyTickets} onClose={() => setShowMyTickets(false)} />
-      <DevicesModal open={showDevicesModal} onClose={() => setShowDevicesModal(false)} />
       <EditEventModal
         key={editEvent?.id || 'none'}
         open={!!editEvent}

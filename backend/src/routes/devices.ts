@@ -57,6 +57,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     if (data.eventId) {
       const event = await prisma.event.findUnique({ where: { id: data.eventId } })
       if (!event) return res.status(404).json({ error: 'Evento não encontrado' })
+      if (event.status === 'FINALIZED' || event.status === 'CANCELED') return res.status(400).json({ error: 'Não é possível adicionar dispositivos a um evento finalizado ou cancelado' })
       if (!isAdmin(req) && !isOwner(req, event.userId)) {
         return res.status(403).json({ error: 'Sem permissão para este evento' })
       }

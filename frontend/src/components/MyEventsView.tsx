@@ -1,18 +1,35 @@
-import styles from './modal.module.css'
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import type { EventSummary } from '../../types'
-import { getEventsByStatus, getTicketTypes, publishEvent, cancelEvent, getEventsByStatusPaginated } from '../../services/events'
-import { getAllOrders } from '../../services/orders'
-import { useToast } from '../../hooks/useToast'
-import { useAuth } from '../../hooks/useAuth'
-import { renderNotice } from '../common/Notice'
-import type { NoticeStyles } from '../common/Notice'
+import styles from './modals/modal.module.css'
+import { useEffect, useState, useCallback, type Dispatch, type SetStateAction } from 'react'
+import type { EventSummary } from '../types'
+import { getEventsByStatus, getTicketTypes, publishEvent, cancelEvent, getEventsByStatusPaginated } from '../services/events'
+import { getAllOrders } from '../services/orders'
+import { useToast } from '../hooks/useToast'
+import { useAuth } from '../hooks/useAuth'
+import { renderNotice } from './common/Notice'
+import type { NoticeStyles } from './common/Notice'
 
-async function getMergedAllEvents() {
-  const pub = await getEventsByStatus('PUBLISHED')
+async function getMergedAllEvents(isAdmin?: boolean) {
+  const pubRaw = await getEventsByStatus('PUBLISHED')
   const draft = await getEventsByStatus('DRAFT').catch(() => [])
-  const canceled = await getEventsByStatus('CANCELED').catch(() => [])
-  const finalized = await getEventsByStatus('FINALIZED').catch(() => [])
+  const canceledRaw = await getEventsByStatus('CANCELED').catch(() => [])
+  const finalizedRaw = await getEventsByStatus('FINALIZED').catch(() => [])
+
+  // Filter events older than 10 days (except drafts)
+  const now = Date.now()
+  const limitMs = 10 * 24 * 60 * 60 * 1000
+  
+  const isRecent = (ev: EventSummary) => {
+    if (isAdmin) return true
+    if (!ev.endDate) return false 
+    const end = new Date(ev.endDate).getTime()
+    if (Number.isNaN(end)) return false
+    return (now - end) <= limitMs
+  }
+
+  const pub = pubRaw.filter(isRecent)
+  const canceled = canceledRaw.filter(isRecent)
+  const finalized = finalizedRaw.filter(isRecent)
+
   const map = new Map<string, EventSummary>()
   for (const e of pub) if (!map.has(e.id)) map.set(e.id, e)
   for (const e of draft) if (!map.has(e.id)) map.set(e.id, e)
@@ -44,21 +61,32 @@ async function computeStatsForEvents(list: EventSummary[]) {
   return s
 }
 
-async function loadAllData() {
-  const items = await getMergedAllEvents()
+async function loadAllData(isAdmin?: boolean) {
+  const items = await getMergedAllEvents(isAdmin)
   const statsObj = await computeStatsForEvents(items)
   return { items, total: 0, serverMode: false, stats: statsObj }
 }
 
-async function loadFilterData(filterVal: 'PUBLISHED' | 'DRAFT' | 'CANCELED' | 'FINALIZED', pageNum: number, pageSz: number) {
+async function loadFilterData(filterVal: 'PUBLISHED' | 'DRAFT' | 'CANCELED' | 'FINALIZED', pageNum: number, pageSz: number, isAdmin?: boolean) {
+  const now = Date.now()
+  const limitMs = 10 * 24 * 60 * 60 * 1000
+  const isOld = (ev: EventSummary) => {
+    if (isAdmin) return false
+    if (ev.status !== 'FINALIZED') return false
+    const end = new Date(ev.endDate).getTime()
+    return (now - end) > limitMs
+  }
+
   try {
     const resp = await getEventsByStatusPaginated(filterVal, pageNum, pageSz)
-    const items = Array.isArray(resp?.items) ? resp.items : []
+    let items = Array.isArray(resp?.items) ? resp.items : []
+    if (filterVal === 'FINALIZED') items = items.filter(e => !isOld(e))
     const statsObj = await computeStatsForEvents(items)
     return { items, total: Number(resp?.total || 0), serverMode: true, stats: statsObj }
   } catch {
     const list = await getEventsByStatus(filterVal).catch(() => [])
-    const items = Array.isArray(list) ? list : []
+    let items = Array.isArray(list) ? list : []
+    if (filterVal === 'FINALIZED') items = items.filter(e => !isOld(e))
     const statsObj = await computeStatsForEvents(items)
     return { items, total: 0, serverMode: false, stats: statsObj }
   }
@@ -75,7 +103,7 @@ function matchesFilter(status: EventSummary['status'], f: 'ALL' | 'PUBLISHED' | 
 
 const notice = (kind: 'ok' | 'err' | 'info', text: string, style?: Record<string, unknown>) => renderNotice(styles as unknown as NoticeStyles, kind, text, style)
 
-export default function MyEventsModal({ open, onClose, onEdit, onPublished }: Readonly<{ open: boolean; onClose: () => void; onEdit: (ev: EventSummary) => void; onPublished?: () => void }>) {
+export default function MyEventsView({ onEdit, onPublished }: Readonly<{ onEdit: (ev: EventSummary) => void; onPublished?: () => void }>) {
   const { show, hide } = useToast()
   const { user } = useAuth()
   const [events, setEvents] = useState<EventSummary[]>([])
@@ -86,27 +114,27 @@ export default function MyEventsModal({ open, onClose, onEdit, onPublished }: Re
   const [stats, setStats] = useState<Record<string, { available: number; waiting: number; active: number }>>({})
   const [serverMode, setServerMode] = useState(false)
   const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (!open) { return }
-    ;(async () => {
-      try {
-        const data = filter === 'ALL' ? await loadAllData() : await loadFilterData(filter, page, pageSize)
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+        const isAdmin = user?.role === 'ADMIN'
+        const data = filter === 'ALL' ? await loadAllData(isAdmin) : await loadFilterData(filter, page, pageSize, isAdmin)
         setServerMode(data.serverMode)
         setTotal(data.total)
         setEvents(data.items)
         setStats(data.stats)
-      } catch { setEvents([]) }
-    })()
-  }, [open, page])
-  useEffect(() => {
-    if (!open) { return }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    globalThis.addEventListener('keydown', onKey)
-    return () => globalThis.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+    } catch { 
+        setEvents([]) 
+    } finally {
+        setLoading(false)
+    }
+  }, [filter, page, pageSize, user])
 
-  if (!open) return null
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   function hasPurchases(evId: string) {
     const st = stats[evId] || { waiting: 0, active: 0, available: 0 }
@@ -134,9 +162,13 @@ function computeActions(ev: EventSummary, hasPurch: boolean) {
     const publishDisabled = hasPurch || ev.status === 'PUBLISHED' || finalOrCanceled || !isOwner
     const cancelDisabled = finalOrCanceled || !isOwner
     const editDisabled = hasPurch || finalOrCanceled || !isOwner
-    const disabledTitle = !isOwner
-      ? 'Ação permitida apenas ao criador do evento'
-      : (finalOrCanceled ? 'Ação indisponível para eventos finalizados/cancelados' : undefined)
+    let disabledTitle: string | undefined
+    if (!isOwner) {
+      disabledTitle = 'Ação permitida apenas ao criador do evento'
+    } else if (finalOrCanceled) {
+      disabledTitle = 'Ação indisponível para eventos finalizados/cancelados'
+    }
+
     return { publishDisabled, cancelDisabled, editDisabled, disabledTitle }
   }
 
@@ -186,12 +218,11 @@ function renderEventItem(
   )
 }
 
-function renderPaginationFooter(page: number, totalPages: number, onClose: () => void, setPage: Dispatch<SetStateAction<number>>) {
+function renderPaginationFooter(page: number, totalPages: number, setPage: Dispatch<SetStateAction<number>>) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop: 16 }}>
       <div style={{ fontSize:12, color:'#6b7280' }}>Página {page} de {totalPages}</div>
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <button className={`${styles.btn} ${styles.ghost}`} onClick={onClose}>Fechar</button>
         <button className={`${styles.btn} ${styles.ghost}`} disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Anterior</button>
         <button className={`${styles.btn} ${styles.ghost}`} disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>Próxima</button>
       </div>
@@ -234,15 +265,26 @@ function renderPaginationFooter(page: number, totalPages: number, onClose: () =>
   const pageItems = serverMode ? filteredSorted : filteredSorted.slice((page-1)*pageSize, (page-1)*pageSize + pageSize)
 
   return (
-    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
-      <div className={styles.modal}>     
-        <div className={styles.section}>
-          
-          {filteredSorted.length === 0 ? (
-            notice('info', 'Nenhum evento encontrado')
-          ) : pageItems.map(ev => renderEventItem(ev, computeActions(ev, hasPurchases(ev.id)), stats, onPublish, onCancel, onEdit))}
-          {filteredSorted.length > 0 && renderPaginationFooter(page, totalPages, onClose, setPage)}
-        </div>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>Gerenciar Eventos</h2>
+        <button 
+            onClick={loadData}
+            title="Atualizar lista"
+            disabled={loading}
+            style={{ 
+                border: 'none', background: 'transparent', cursor: loading ? 'wait' : 'pointer', 
+                color: '#6b7280', display: 'flex', alignItems: 'center', opacity: loading ? 0.7 : 1 
+            }}>
+            <span className={`mi ${loading ? 'spin' : ''}`} style={{ fontSize: 24 }}>refresh</span>
+        </button>
+      </div>
+
+      <div className={styles.section} style={{ padding: 0 }}>
+        {filteredSorted.length === 0 ? (
+          notice('info', 'Nenhum evento encontrado')
+        ) : pageItems.map(ev => renderEventItem(ev, computeActions(ev, hasPurchases(ev.id)), stats, onPublish, onCancel, onEdit))}
+        {filteredSorted.length > 0 && renderPaginationFooter(page, totalPages, setPage)}
       </div>
     </div>
   )

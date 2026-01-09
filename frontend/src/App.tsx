@@ -1,8 +1,7 @@
 import './App.css'
-import { Routes, Route, Navigate } from 'react-router-dom'
-//import SevenEventsPage from './pages/SevenEventsPage'
+import { Routes, Route } from 'react-router-dom'
+import SevenEventsPage from './pages/SevenEventsPage'
 import EventDetails from './pages/EventDetails'
-import Login from './pages/Login'
 import DeviceLogin from './pages/DeviceLogin'
 import DeviceCheckin from './pages/DeviceCheckin'
 import { useEffect } from 'react'
@@ -25,9 +24,8 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<SevenEventsPage />} />
       <Route path="/events/:slug" element={<EventDetails />} />
-      <Route path="/login" element={<Login />} />
       <Route path="/device/login" element={<DeviceLogin />} />
       <Route path="/device/checkin" element={<DeviceCheckin />} />
     </Routes>

@@ -1,6 +1,4 @@
-import React from 'react'
-
-export function SevenEventsLogo({ size = 48, showText = true }: { size?: number; showText?: boolean }) {
+export function SevenEventsLogo({ size = 48, showText = true }: { readonly size?: number; readonly showText?: boolean }) {
   const scale = size / 48
 
   return (
