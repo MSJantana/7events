@@ -243,9 +243,9 @@ export default function TicketList({ tickets }: { readonly tickets: readonly Tic
                     <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>{selectedTicket.eventName}</h1>
                   </div>
                   {/* Optional: Event Image if available, or just logo */}
-                  <div style={{ opacity: 0.8 }}>
-                    <div style={{ width: 50, height: 50, border: '2px solid rgba(255,255,255,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <SevenEventsLogo size={36} showText={false} />
+                  <div style={{ opacity: 1 }}>
+                    <div style={{ width: 80, height: 80, border: '2px solid rgba(255,255,255,0.2)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <SevenEventsLogo size={64} showText={false} />
                     </div>
                   </div>
                 </div>
