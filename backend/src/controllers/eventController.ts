@@ -152,8 +152,15 @@ export const eventController = {
       } as any)
       res.status(201).json(event)
     } catch (e: any) {
+      console.error('EVENT CREATE ERROR:', e) // Direct console log for debugging
+      // Check for Foreign Key Constraint Violation (User not found)
+      // P2003 is the standard code, but sometimes it might vary or be wrapped
+      if (e?.code === 'P2003' || String(e?.message || '').includes('Foreign key constraint failed')) {
+        return res.status(401).json({ error: 'unauthorized', details: 'user_not_found' })
+      }
       const issues = e?.issues || e?.errors || []
-      logWarn('event_create_invalid_body', { requestId: (req as any)?.requestId, issuesCount: Array.isArray(issues) ? issues.length : 0, fields: Array.isArray(issues) ? issues.map((it: any) => it?.path?.[0]).filter(Boolean) : undefined })
+      // Fix: Pass 'e' directly as error property, not e.message
+      logWarn('event_create_failed', { requestId: (req as any)?.requestId, issuesCount: Array.isArray(issues) ? issues.length : 0, error: e })
       return res.status(400).json({ error: 'invalid_body', details: issues })
     }
   },

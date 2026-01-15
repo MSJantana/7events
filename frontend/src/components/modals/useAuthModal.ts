@@ -110,11 +110,11 @@ export function useAuthModal(onLoggedIn: (u: User) => void, onClose: () => void)
 async function loadWhoami(): Promise<User | null> {
   const w = await fetch(`${API_URL}/auth/whoami`, { credentials: 'include' })
   if (!w.ok) return null
-  type WhoamiBody = { accessToken?: string; user?: { id: string; name: string; email?: string; role: User['role'] } }
+  type WhoamiBody = { accessToken?: string; user?: { id: string; name: string; email?: string; role: User['role']; eventsCount?: number } }
   const j: WhoamiBody = await w.json()
   if (j?.accessToken) {
     try { globalThis.localStorage.setItem('access_token', j.accessToken) } catch { void 0 }
   }
-  if (j?.user) return { id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role }
+  if (j?.user) return { id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role, eventsCount: j.user.eventsCount }
   return null
 }

@@ -1,5 +1,5 @@
 export type UserRole = 'ADMIN' | 'ORGANIZER'
-export type User = { id: string; name: string; email?: string; role: UserRole }
+export type User = { id: string; name: string; email?: string; role: UserRole; eventsCount?: number }
 
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'
 export type EventSummary = { id: string; title: string; description?: string; location: string; startDate: string; endDate: string; status: EventStatus; imageUrl?: string | null }

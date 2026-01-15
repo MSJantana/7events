@@ -31,7 +31,7 @@ enum Role {
 model Event {
   id          String       @id @default(uuid())
   title       String
-  description String
+  description String       @db.Text
   startDate   DateTime
   endDate     DateTime
   location    String
@@ -119,7 +119,7 @@ model TicketValidationLog {
   createdAt DateTime @default(now())
   
   ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  device    CheckinDevice? @relation(fields: [deviceId], references: [id])
+  device    CheckinDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 }
 
 model CheckinDevice {

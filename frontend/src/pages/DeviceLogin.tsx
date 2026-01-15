@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDeviceAuth } from '../context/DeviceAuthContext'
+import { useToast } from '../hooks/useToast'
 import styles from './DeviceLogin.module.css'
 
 export default function DeviceLogin() {
   const [inputKey, setInputKey] = useState('')
   const { setDeviceApiKey } = useDeviceAuth()
   const navigate = useNavigate()
+  const { show } = useToast()
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -14,7 +16,7 @@ export default function DeviceLogin() {
       setDeviceApiKey(inputKey.trim())
       navigate('/device/checkin')
     } else {
-      alert('API Key inválida')
+      show({ text: 'API Key inválida', kind: 'err' })
     }
   }
 

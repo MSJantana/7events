@@ -44,33 +44,39 @@ export async function handleGoogleCallback(code: string, ip?: string) {
   const payload = ticket.getPayload()
   if (!payload?.email || !payload?.name) throw new Error('invalid_google_payload')
 
-  const user = await prisma.user.upsert({
-    where: { email: payload.email },
-    update: { name: payload.name },
-    create: { email: payload.email, name: payload.name, role: Role.ORGANIZER }
-  })
-
-  if (payload.sub) {
-    await prisma.userGoogle.upsert({
-      where: { sub: payload.sub },
-      update: { email: payload.email, name: payload.name, userId: user.id },
-      create: { sub: payload.sub, email: payload.email, name: payload.name, userId: user.id }
+  const { user, accessToken, refreshToken } = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.upsert({
+      where: { email: payload.email },
+      update: { name: payload.name },
+      create: { email: payload.email!, name: payload.name!, role: Role.ORGANIZER }
     })
-  }
 
-  const sessionId =
-    globalThis.crypto?.randomUUID
-      ? globalThis.crypto.randomUUID()
-      : `${Date.now()}-${Math.random()}`
+    if (payload.sub) {
+      await tx.userGoogle.upsert({
+        where: { sub: payload.sub },
+        update: { email: payload.email!, name: payload.name!, userId: user.id },
+        create: { sub: payload.sub, email: payload.email!, name: payload.name!, userId: user.id }
+      })
+    }
 
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const sessionId =
+      globalThis.crypto?.randomUUID
+        ? globalThis.crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`
 
-  await prisma.loginSession.create({
-    data: { userId: user.id, sessionId, ip, expiresAt }
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+    await tx.loginSession.create({
+      data: { userId: user.id, sessionId, ip, expiresAt }
+    })
+
+    const accessToken = signJwt({ sub: user.id, role: user.role, sid: sessionId }, 7)
+    const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid: sessionId }, 30)
+    
+    const eventsCount = await tx.event.count({ where: { userId: user.id } })
+
+    return { user: { ...user, eventsCount }, accessToken, refreshToken }
   })
-
-  const accessToken = signJwt({ sub: user.id, role: user.role, sid: sessionId }, 7)
-  const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid: sessionId }, 30)
 
   return { accessToken, refreshToken, user }
 }

@@ -57,8 +57,38 @@ function renderTicketItem(
             <span style={{ fontSize:12, color:'#065f46', background:'#d1fae5', border:'1px solid var(--border)', borderRadius:999, padding:'2px 8px' }}>Alterado</span>
           ) : null}
         </div>
-        <input type="number" min={0} value={t.quantity} onChange={e=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], quantity: e.target.value }; return copy })} className={styles.inputSm} style={{ width:120 }} disabled={lockEdit || step === 3} />
-        <input type="number" min={0} step="0.01" value={t.price} onChange={e=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], price: e.target.value }; return copy })} className={styles.inputSm} style={{ width:120 }} disabled={lockEdit || step === 3} />
+        <input
+          type="number"
+          min={0}
+          value={t.quantity}
+          onChange={e=>setTts(list=>{
+            const copy = list.slice()
+            const value = e.target.value
+            if (lockEdit && old) {
+              const oldQty = Number(old.quantity || 0)
+              const newQty = Number(value || 0)
+              if (newQty < oldQty) {
+                copy[i] = { ...copy[i], quantity: String(oldQty) }
+                return copy
+              }
+            }
+            copy[i] = { ...copy[i], quantity: value }
+            return copy
+          })}
+          className={styles.inputSm}
+          style={{ width:120 }}
+          disabled={step === 3}
+        />
+        <input
+          type="number"
+          min={0}
+          step="0.01"
+          value={t.price}
+          onChange={e=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], price: e.target.value }; return copy })}
+          className={styles.inputSm}
+          style={{ width:120 }}
+          disabled={lockEdit || step === 3}
+        />
       </div>
       {changed ? (
         <div style={{ fontSize:12, color:'#6b7280' }}>Qtd: {String(old?.quantity || '0')} → {t.quantity || '0'}</div>
@@ -81,7 +111,8 @@ function renderSummaryItem(t: EditTTItem, orig: EditTTItem[]) {
   )
 }
 
-type Props = { open: boolean; onClose: () => void; eventId?: string; initial?: { title: string; location: string; startDate: string; description: string }; currentImageUrl?: string | null; onUpdated?: (patch: { id: string; imageUrl?: string | null; thumbUrl?: string | null }) => void }
+type EditForm = { title: string; location: string; startDate: string; description: string; endDate?: string; endTime?: string }
+type Props = { open: boolean; onClose: () => void; eventId?: string; initial?: EditForm; currentImageUrl?: string | null; onUpdated?: (patch: { id: string; imageUrl?: string | null; thumbUrl?: string | null }) => void }
 type StepId = 1 | 2 | 3
 type EditTTItem = { id: string; name: string; quantity: string; price: string }
 
@@ -102,27 +133,12 @@ function stepLabelValue(s: StepId, id: StepId) {
   }
   return label
 }
-function parseYMD(s: string) {
-  const parts = String(s || '').split('-')
-  const y = Number(parts[0] || 0)
-  const m = Number(parts[1] || 0)
-  const d = Number(parts[2] || 0)
-  return { y, m, d }
-}
 function todayYMD() {
   const t = new Date()
   const y = t.getFullYear()
   const m = String(t.getMonth() + 1).padStart(2, '0')
   const d = String(t.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
-}
-function validateStartDateNotInPast(start: string): string | null {
-  const s = start || todayYMD()
-  const a = parseYMD(s)
-  const startDate = new Date(a.y, a.m - 1, a.d)
-  const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  if (startDate.getTime() < today.getTime()) return 'Data de início não pode ser inferior à data atual'
-  return null
 }
 const brlFmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 function StepperUI({ step }: Readonly<{ step: StepId }>) {
@@ -148,7 +164,7 @@ function StepperUI({ step }: Readonly<{ step: StepId }>) {
 
 export default function EditEventModal({ open, onClose, eventId, initial, currentImageUrl, onUpdated }: Readonly<Props>) {
   const { show } = useToast()
-  const [form, setForm] = useState(initial || { title: '', location: '', startDate: todayYMD(), description: '' })
+  const [form, setForm] = useState<EditForm>(initial || { title: '', location: '', startDate: todayYMD(), description: '', endDate: todayYMD(), endTime: '00:00' })
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [imgCfg, setImgCfg] = useState<{ uploadMaxMB: number; allowedMimes: string[]; minWidth: number; minHeight: number; mainMaxWidth: number } | null>(null)
@@ -175,11 +191,16 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
       try {
         const ev = await getEventById(eventId)
         if (cancelled) return
+        const endRaw = String(ev.endDate || '')
+        const endDate = endRaw ? String(endRaw).substring(0, 10) : todayYMD()
+        const endTime = endRaw && endRaw.length >= 16 ? String(endRaw).substring(11, 16) : '00:00'
         setForm({
           title: ev.title || '',
           location: ev.location || '',
           startDate: ev.startDate ? String(ev.startDate).substring(0,10) : todayYMD(),
-          description: ev.description || ''
+          description: ev.description || '',
+          endDate,
+          endTime
         })
         setExistingImageUrl(ev.imageUrl || null)
         const list = await getTicketTypes(eventId)
@@ -210,11 +231,11 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
   const thumbUrl = existingImageUrl?.endsWith('.webp') ? existingImageUrl.replace(/\.webp$/, '-thumb.webp') : (existingImageUrl ?? null)
   const bgUrl = preview || thumbUrl
   const bgImage = bgUrl ? `url(${bgUrl})` : undefined
-  const dateErr = validateStartDateNotInPast(form.startDate)
   const titleInvalid = String(form.title || '').trim() === ''
   const locationInvalid = String(form.location || '').trim() === ''
   const descriptionInvalid = String(form.description || '').trim() === ''
   const startInvalid = String(form.startDate || '').trim() === ''
+  const endInvalid = String(form.endDate || '').trim() === ''
 
   async function uploadImageIfNeeded(id: string, f: File | null) {
     if (!f) return
@@ -232,9 +253,15 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
   async function onSave() {
     try {
       if (!eventId) return
-      const err = validateStartDateNotInPast(form.startDate)
-      if (err) { show({ text: err, kind: 'err' }); return }
-      await updateEventBasic(eventId, { title: form.title, location: form.location, startDate: form.startDate, description: form.description })
+      if (endInvalid) { show({ text: 'Data de fim inválida', kind: 'err' }); return }
+      await updateEventBasic(eventId, {
+        title: form.title,
+        location: form.location,
+        startDate: form.startDate,
+        description: form.description,
+        endDate: form.endDate,
+        endTime: form.endTime
+      })
       await uploadImageIfNeeded(eventId, file)
       for (const ch of tts) {
         const old = origTtsRef.current.find(o => o.id === ch.id)
@@ -259,7 +286,7 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
 
   return (
     <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
-      <div className={styles.modal}>     
+      <div className={styles.modal}>
         <StepperUI step={step} />
         <div className={styles.section}>
           <div className={styles.content}>
@@ -298,20 +325,23 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
               <div style={{ fontSize:12, color:'#6b7280', marginTop:6 }}>
                 {imgCfg ? `Máx ${imgCfg.uploadMaxMB} MB, mín ${imgCfg.minWidth}x${imgCfg.minHeight}, formatos PNG/JPEG/WebP` : `Mín 600x400, formatos PNG/JPEG/WebP`}
               </div>
-              {lockEdit ? notice('info', 'Edição bloqueada: já existem ingressos pagos', { background:'#fffbeb', borderColor:'var(--warn)', color:'#92400e' }) : null}
+              {lockEdit ? notice('info', 'Ingressos bloqueados: já existem ingressos pagos', { background:'#fffbeb', borderColor:'var(--warn)', color:'#92400e' }) : null}
               <div style={{ display:'flex', flexDirection:'column', gap:6, maxWidth:'600px', width:'100%', alignSelf:'center' }}>
-                <div className={styles.field}><label className={styles.label} htmlFor="edit-event-title">Título</label><input id="edit-event-title" className={`${styles.inputSm} ${titleInvalid ? styles.invalid : ''}`} value={form.title} onChange={e=>setForm(f=>({ ...f, title: e.target.value }))} disabled={loading || lockEdit} /></div>
-                <div className={styles.field}><label className={styles.label} htmlFor="edit-event-location">Local</label><input id="edit-event-location" className={`${styles.inputSm} ${locationInvalid ? styles.invalid : ''}`} value={form.location} onChange={e=>setForm(f=>({ ...f, location: e.target.value }))} disabled={loading || lockEdit} /></div>
+                <div className={styles.field}><label className={styles.label} htmlFor="edit-event-title">Título</label><input id="edit-event-title" className={`${styles.inputSm} ${titleInvalid ? styles.invalid : ''}`} value={form.title} onChange={e=>setForm(f=>({ ...f, title: e.target.value }))} disabled={loading} /></div>
+                <div className={styles.field}><label className={styles.label} htmlFor="edit-event-location">Local</label><input id="edit-event-location" className={`${styles.inputSm} ${locationInvalid ? styles.invalid : ''}`} value={form.location} onChange={e=>setForm(f=>({ ...f, location: e.target.value }))} disabled={loading} /></div>
                 <div className={styles.row}>
-                  <div className={`${styles.field} ${styles.col}`}><label className={styles.label} htmlFor="edit-event-start-date">Início</label><input id="edit-event-start-date" className={`${styles.inputSm} ${startInvalid ? styles.invalid : ''}`} type="date" value={form.startDate} onChange={e=>setForm(f=>({ ...f, startDate: e.target.value }))} disabled={loading || lockEdit} /></div>
+                  <div className={`${styles.field} ${styles.col}`}><label className={styles.label} htmlFor="edit-event-start-date">Início</label><input id="edit-event-start-date" className={`${styles.inputSm} ${startInvalid ? styles.invalid : ''}`} type="date" value={form.startDate} onChange={e=>setForm(f=>({ ...f, startDate: e.target.value }))} disabled={loading} /></div>
                 </div>
-                <div className={styles.field}><label className={styles.label} htmlFor="edit-event-description">Descrição</label><textarea id="edit-event-description" className={`${styles.inputSm} ${descriptionInvalid ? styles.invalid : ''}`} rows={3} value={form.description} onChange={e=>setForm(f=>({ ...f, description: e.target.value }))} disabled={loading || lockEdit} /></div>
-              {dateErr ? notice('err', dateErr) : null}
+                <div className={styles.row}>
+                  <div className={`${styles.field} ${styles.col}`}><label className={styles.label} htmlFor="edit-event-end-date">Fim</label><input id="edit-event-end-date" className={`${styles.inputSm} ${endInvalid ? styles.invalid : ''}`} type="date" value={form.endDate || ''} onChange={e=>setForm(f=>({ ...f, endDate: e.target.value }))} disabled={loading} /></div>
+                  <div className={styles.field} style={{ flex:'0 0 100px' }}><label className={styles.label} htmlFor="edit-event-end-time">Hora</label><input id="edit-event-end-time" className={styles.inputSm} type="time" value={form.endTime || ''} onChange={e=>setForm(f=>({ ...f, endTime: e.target.value }))} disabled={loading} /></div>
+                </div>
+                <div className={styles.field}><label className={styles.label} htmlFor="edit-event-description">Descrição</label><textarea id="edit-event-description" className={`${styles.inputSm} ${descriptionInvalid ? styles.invalid : ''}`} rows={3} value={form.description} onChange={e=>setForm(f=>({ ...f, description: e.target.value }))} disabled={loading} /></div>
               </div>
               {step === 1 && (
                 <div className={styles.actions}>
                   <button className={`${styles.btn} ${styles.ghost}`} onClick={onClose}>Cancelar</button>
-                  <button className={`${styles.btn} ${styles.primary}`} onClick={()=>{ if (dateErr) { show({ text: dateErr, kind: 'err' }); return } setStep(2) }} disabled={lockEdit || !!dateErr}>Continuar</button>
+                  <button className={`${styles.btn} ${styles.primary}`} onClick={()=>{ if (endInvalid) { show({ text: 'Data de fim inválida', kind: 'err' }); return } setStep(2) }} disabled={loading || endInvalid}>Continuar</button>
                 </div>
               )}
             </div>

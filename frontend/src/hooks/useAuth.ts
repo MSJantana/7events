@@ -12,7 +12,13 @@ export function useAuth() {
         if (j?.accessToken) {
           try { globalThis.localStorage.setItem('access_token', j.accessToken) } catch { void 0 }
         }
-        if (!cancelled && j?.user) setUser({ id: j.user.id, name: j.user.name, email: j.user.email, role: j.user.role as User['role'] })
+        if (!cancelled && j?.user) setUser({
+          id: j.user.id,
+          name: j.user.name,
+          email: j.user.email,
+          role: j.user.role as User['role'],
+          eventsCount: j.user.eventsCount
+        })
       } catch { setUser(u => u) }
     })()
     return () => { cancelled = true }

@@ -1,56 +1,29 @@
-import styles from './modal.module.css'
-import type { User } from '../../types'
-import { useEffect, useState, Fragment, useCallback } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
-type StepId = 1 | 2 | 3
+import { useNavigate } from 'react-router-dom'
+import Header from '../components/Header'
+import Footer from '../components/Footer'
+import { useToast } from '../hooks/useToast'
+import { useAuth } from '../hooks/useAuth'
+import { createEvent, uploadEventImage, createTicketType, publishEvent } from '../services/events'
+import { api } from '../services/api'
+import type { User } from '../types'
+import styles from './create-event.module.css'
 
-function stepIconClass(s: StepId, id: StepId) {
-  if (s === id) return styles.stepIconActive
-  if (s > id) return styles.stepIconDone
-  return styles.stepIconInactive
-}
-function stepLabelClass(s: StepId, id: StepId) {
-  return s === id ? styles.stepLabelActive : ''
-}
-function stepLabelValue(s: StepId, id: StepId) {
-  let label: string
-  if (s === id) {
-    label = String(id)
-  } else if (s > id) {
-    label = '✓'
-  } else {
-    label = String(id)
-  }
-  return label
-}
-function StepperUI(s: StepId) {
-  const steps: Array<{ id: StepId; icon: string; text: string }> = [
-    { id: 1, icon: 'calendar_month', text: 'Criar evento' },
-    { id: 2, icon: 'confirmation_number', text: 'Adicionar ingresso' },
-    { id: 3, icon: 'rocket_launch', text: 'Finalizar' },
-  ]
-  return (
-    <div className={styles.stepper}>
-      {steps.map((st, idx) => (
-        <Fragment key={st.id}>
-          <div className={styles.stepGroup}>
-            <span className={`${styles.stepIconCircle} ${stepIconClass(s, st.id)}`} aria-hidden><span className="mi">{st.icon}</span></span>
-            <span className={`${styles.stepLabel} ${stepLabelClass(s, st.id)}`}>{stepLabelValue(s, st.id)} {st.text}</span>
-          </div>
-          {idx < steps.length - 1 ? <span className={styles.stepConnector} aria-hidden></span> : null}
-        </Fragment>
-      ))}
-    </div>
-  )
-}
+// --- Helper Functions & Types ---
+
+type StepId = 1 | 2 | 3
 type TicketItem = { id: string; name: string; paid: boolean; price: string; quantity: string }
+
 function makeTempId() { return 'tt-' + Math.random().toString(36).slice(2) + Date.now().toString(36) }
+
 function parseCurrencyBR(text: string) {
   const digits = String(text || '').replaceAll(/\D/g, '')
   const n = digits ? Number(digits) : 0
   const v = (n / 100).toFixed(2)
   return v
 }
+
 function formatCurrencyBR(value: string) {
   const n = Number(value || 0)
   const cents = Math.round(n * 100)
@@ -60,6 +33,7 @@ function formatCurrencyBR(value: string) {
   const intDots = int.replaceAll(/\B(?=(\d{3})+(?!\d))/g, '.')
   return `${intDots},${dec}`
 }
+
 function parseYMD(s: string) {
   const parts = String(s || '').split('-')
   const y = Number(parts[0] || 0)
@@ -67,6 +41,7 @@ function parseYMD(s: string) {
   const d = Number(parts[2] || 0)
   return { y, m, d }
 }
+
 function todayYMD() {
   const t = new Date()
   const y = t.getFullYear()
@@ -74,6 +49,7 @@ function todayYMD() {
   const d = String(t.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
+
 function validateDates(startD: string, startT: string, endD: string, endT: string): string | null {
   const sObj = parseYMD(startD || todayYMD())
   const [sh, sm] = String(startT || '00:00').split(':').map(Number)
@@ -91,7 +67,111 @@ function validateDates(startD: string, startT: string, endD: string, endT: strin
   return null
 }
 
-function Step1Section(p: Readonly<{ preview: string | null; hint: string; title: string; description: string; location: string; startDate: string; startTime: string; endDate: string; endTime: string; capacity: string; onTitleChange: (v: string) => void; onDescriptionChange: (v: string) => void; onLocationChange: (v: string) => void; onStartDateChange: (v: string) => void; onStartTimeChange: (v: string) => void; onEndDateChange: (v: string) => void; onEndTimeChange: (v: string) => void; onCapacityChange: (v: string) => void; handleImageChange: (e: ChangeEvent<HTMLInputElement>) => void; loading: boolean; user: User | null; onClose: () => void; onSubmit: () => void }>): ReactNode {
+function errorDetailsLower(e: unknown) {
+  const o = e as Record<string, unknown>
+  const d = String((o?.details as string) || (o?.message as string) || '')
+  return d.toLowerCase()
+}
+
+function imageUploadErrorText(lower: string, maxMB?: number) {
+  if (lower.includes('low_resolution')) return 'Imagem muito pequena (mín 600x400)'
+  if (lower.includes('invalid_mime')) return 'Formato inválido (use PNG/JPEG/WebP)'
+  if (lower.includes('invalid_signature')) return 'Arquivo inválido ou corrompido'
+  if (lower.includes('file_required')) return 'Selecione uma imagem'
+  if (lower.includes('limit_file_size')) {
+    const suffix = typeof maxMB === 'number' ? ` (máx ${maxMB} MB)` : ''
+    return 'Imagem muito grande' + suffix
+  }
+  return 'Falha no upload de imagem'
+}
+
+function eventCreateErrorText(e: unknown) {
+  const obj = (e ?? {}) as Record<string, unknown>
+  const code = String((obj['code'] as string) || (obj['message'] as string) || '')
+  const status = Number((obj['status'] as number) || 0) || 0
+  const details = Array.isArray(obj['details']) ? (obj['details'] as Array<{ path?: Array<string | number>; message?: string; code?: string }>) : []
+  if (status === 401 || code === 'unauthorized') return 'Você precisa estar autenticado'
+  if (code === 'invalid_capacity') return 'Capacidade inválida'
+  if (details.length > 0) {
+    const msgs = details.map((it) => {
+      const field = String(it?.path?.[0] || '')
+      const msg = String(it?.message || '')
+      switch (field) {
+        case 'title': return 'Campo título é obrigatório (mín 3)'
+        case 'description': return 'Campo descrição é obrigatório (mín 10)'
+        case 'location': return 'Campo local é obrigatório (mín 3)'
+        case 'startDate': 
+          if (msg === 'date_in_past' || msg === 'start_in_past') return 'Não foi possível criar o evento: data e hora inválidas'
+          return 'Data de início inválida'
+        case 'endDate': return 'Data de fim inválida'
+        case 'capacity': return 'Capacidade deve ser um inteiro positivo'
+        case 'imageUrl': return 'URL de imagem inválida'
+        default: return `${field || 'Campo'} inválido`
+      }
+    })
+    const uniq = Array.from(new Set(msgs))
+    return uniq.join(' • ')
+  }
+  return 'Dados inválidos para criar evento'
+}
+
+function ticketTypeCreateErrorText(e: unknown) {
+  const obj = (e ?? {}) as Record<string, unknown>
+  const code = String((obj['code'] as string) || (obj['message'] as string) || '')
+  const status = Number((obj['status'] as number) || 0) || 0
+  const details = Array.isArray(obj['details']) ? (obj['details'] as Array<{ path?: Array<string | number>; message?: string; code?: string }>) : []
+  if (status === 401 || code === 'unauthorized') return 'Você precisa estar autenticado'
+  if (status === 403 || code === 'forbidden') return 'Você não tem acesso para criar ingressos'
+  if (code === 'event_not_found') return 'Evento não encontrado'
+  if (details.length > 0) {
+    const msgs = details.map((it) => {
+      const field = String(it?.path?.[0] || '')
+      switch (field) {
+        case 'name': return 'Nome do ingresso é obrigatório'
+        case 'price': return 'Preço deve ser maior ou igual a 0'
+        case 'quantity': return 'Quantidade deve ser um inteiro positivo'
+        default: return `${field || 'Campo'} inválido`
+      }
+    })
+    const uniq = Array.from(new Set(msgs))
+    return uniq.join(' • ')
+  }
+  return 'Falha ao criar ingresso'
+}
+
+// --- Components ---
+
+function StepperUI(step: StepId) {
+  const steps = [
+    { id: 1, label: 'Detalhes' },
+    { id: 2, label: 'Ingressos' },
+    { id: 3, label: 'Publicar' },
+  ]
+
+  const getStepClass = (sId: number) => {
+    if (step === sId) return styles.stepIconActive
+    if (step > sId) return styles.stepIconDone
+    return styles.stepIconInactive
+  }
+
+  return (
+    <div className={styles.stepper}>
+      {steps.map((s, idx) => (
+        <Fragment key={s.id}>
+          <div className={styles.stepGroup}>
+            <div className={`${styles.stepIconCircle} ${getStepClass(s.id)}`}>
+              {step > s.id ? '✓' : s.id}
+            </div>
+            <div className={`${styles.stepLabel} ${step === s.id ? styles.stepLabelActive : ''}`}>{s.label}</div>
+          </div>
+          {idx < steps.length - 1 ? <span className={styles.stepConnector} aria-hidden></span> : null}
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
+function Step1Section(p: Readonly<{ preview: string | null; hint: string; title: string; description: string; location: string; startDate: string; startTime: string; endDate: string; endTime: string; capacity: string; onTitleChange: (v: string) => void; onDescriptionChange: (v: string) => void; onLocationChange: (v: string) => void; onStartDateChange: (v: string) => void; onStartTimeChange: (v: string) => void; onEndDateChange: (v: string) => void; onEndTimeChange: (v: string) => void; onCapacityChange: (v: string) => void; handleImageChange: (e: ChangeEvent<HTMLInputElement>) => void; loading: boolean; user: User | null; onCancel: () => void; onSubmit: () => void }>): ReactNode {
   const titleInvalid = String(p.title || '').trim() === ''
   const descriptionInvalid = String(p.description || '').trim() === ''
   const locationInvalid = String(p.location || '').trim() === ''
@@ -111,7 +191,20 @@ function Step1Section(p: Readonly<{ preview: string | null; hint: string; title:
       </div>
       <div style={{ fontSize:12, color:'#6b7280', marginTop:6 }}>{p.hint}</div>
       <div className={styles.field}><label htmlFor="title" className={styles.label}>Título</label><input id="title" className={`${styles.input} ${titleInvalid ? styles.invalid : ''}`} value={p.title} onChange={e=>p.onTitleChange(e.target.value)} /></div>
-      <div className={styles.field}><label htmlFor="description" className={styles.label}>Descrição</label><textarea id="description" className={`${styles.input} ${descriptionInvalid ? styles.invalid : ''}`} value={p.description} onChange={e=>p.onDescriptionChange(e.target.value)} /></div>
+      <div className={styles.field}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <label htmlFor="description" className={styles.label}>Descrição</label>
+          <span style={{ fontSize: 10, color: '#6b7280' }}>{p.description.length}/2500 (mín 10)</span>
+        </div>
+        <textarea
+          id="description"
+          className={`${styles.input} ${descriptionInvalid ? styles.invalid : ''}`}
+          value={p.description}
+          maxLength={2500}
+          onChange={e => p.onDescriptionChange(e.target.value)}
+          style={{ minHeight: 100, resize: 'vertical' }}
+        />
+      </div>
       <div className={styles.field}><label htmlFor="location" className={styles.label}>Local</label><input id="location" className={`${styles.input} ${locationInvalid ? styles.invalid : ''}`} value={p.location} onChange={e=>p.onLocationChange(e.target.value)} /></div>
       <div className={styles.row}>
         <div className={`${styles.field} ${styles.col}`}><label htmlFor="startDate" className={styles.label}>Início</label><input id="startDate" className={`${styles.inputSm} ${startInvalid ? styles.invalid : ''}`} type="date" placeholder="dd/mm/aaaa" value={p.startDate} onChange={e=>p.onStartDateChange(e.target.value)} /></div>
@@ -123,12 +216,13 @@ function Step1Section(p: Readonly<{ preview: string | null; hint: string; title:
         <div className={styles.field} style={{ flex:'0 0 120px' }}><label htmlFor="capacity" className={styles.label}>Capacidade</label><input id="capacity" className={`${styles.inputSm} ${capacityInvalid ? styles.invalid : ''}`} type="number" min={0} placeholder="0" value={p.capacity} onChange={e=>p.onCapacityChange(e.target.value)} /></div>
       </div>
       <div className={styles.actions}>
-        <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onClose}>Cancelar</button>
+        <button className={`${styles.btn} ${styles.ghost}`} onClick={p.onCancel}>Cancelar</button>
         <button disabled={p.loading || !p.user || !filled} className={`${styles.btn} ${styles.primary}`} onClick={p.onSubmit}>{p.loading ? 'Criando...' : 'Continuar'}</button>
       </div>
     </>
   )
 }
+
 function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number, paid: boolean) => void; onChangePrice: (i: number, price: string) => void; onBack: () => void; onNext: () => void }>): ReactNode {
   return (
     <>
@@ -162,6 +256,7 @@ function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number,
     </>
   )
 }
+
 function Step3Section(p: Readonly<{ tts: TicketItem[]; loading: boolean; user: User | null; onBack: () => void; onFinalizeAndPublish: () => void }>): ReactNode {
   return (
     <>
@@ -185,82 +280,12 @@ function Step3Section(p: Readonly<{ tts: TicketItem[]; loading: boolean; user: U
     </>
   )
 }
-function errorDetailsLower(e: unknown) {
-  const o = e as Record<string, unknown>
-  const d = String((o?.details as string) || (o?.message as string) || '')
-  return d.toLowerCase()
-}
-function imageUploadErrorText(lower: string, maxMB?: number) {
-  if (lower.includes('low_resolution')) return 'Imagem muito pequena (mín 600x400)'
-  if (lower.includes('invalid_mime')) return 'Formato inválido (use PNG/JPEG/WebP)'
-  if (lower.includes('invalid_signature')) return 'Arquivo inválido ou corrompido'
-  if (lower.includes('file_required')) return 'Selecione uma imagem'
-  if (lower.includes('limit_file_size')) {
-    const suffix = typeof maxMB === 'number' ? ` (máx ${maxMB} MB)` : ''
-    return 'Imagem muito grande' + suffix
-  }
-  return 'Falha no upload de imagem'
-}
-function eventCreateErrorText(e: unknown) {
-  const obj = (e ?? {}) as Record<string, unknown>
-  const code = String((obj['code'] as string) || (obj['message'] as string) || '')
-  const status = Number((obj['status'] as number) || 0) || 0
-  const details = Array.isArray(obj['details']) ? (obj['details'] as Array<{ path?: Array<string | number>; message?: string; code?: string }>) : []
-  if (status === 401 || code === 'unauthorized') return 'Você precisa estar autenticado'
-  if (code === 'invalid_capacity') return 'Capacidade inválida'
-  if (details.length > 0) {
-    const msgs = details.map((it) => {
-      const field = String(it?.path?.[0] || '')
-      const msg = String(it?.message || '')
-      switch (field) {
-        case 'title': return 'Campo título é obrigatório (mín 3)'
-        case 'description': return 'Campo descrição é obrigatório (mín 10)'
-        case 'location': return 'Campo local é obrigatório (mín 3)'
-        case 'startDate': 
-          if (msg === 'date_in_past' || msg === 'start_in_past') return 'Não foi possível criar o evento: data e hora inválidas'
-          return 'Data de início inválida'
-        case 'endDate': return 'Data de fim inválida'
-        case 'capacity': return 'Capacidade deve ser um inteiro positivo'
-        case 'imageUrl': return 'URL de imagem inválida'
-        default: return `${field || 'Campo'} inválido`
-      }
-    })
-    const uniq = Array.from(new Set(msgs))
-    return uniq.join(' • ')
-  }
-  return 'Dados inválidos para criar evento'
-}
-function ticketTypeCreateErrorText(e: unknown) {
-  const obj = (e ?? {}) as Record<string, unknown>
-  const code = String((obj['code'] as string) || (obj['message'] as string) || '')
-  const status = Number((obj['status'] as number) || 0) || 0
-  const details = Array.isArray(obj['details']) ? (obj['details'] as Array<{ path?: Array<string | number>; message?: string; code?: string }>) : []
-  if (status === 401 || code === 'unauthorized') return 'Você precisa estar autenticado'
-  if (status === 403 || code === 'forbidden') return 'Você não tem acesso para criar ingressos'
-  if (code === 'event_not_found') return 'Evento não encontrado'
-  if (details.length > 0) {
-    const msgs = details.map((it) => {
-      const field = String(it?.path?.[0] || '')
-      switch (field) {
-        case 'name': return 'Nome do ingresso é obrigatório'
-        case 'price': return 'Preço deve ser maior ou igual a 0'
-        case 'quantity': return 'Quantidade deve ser um inteiro positivo'
-        default: return `${field || 'Campo'} inválido`
-      }
-    })
-    const uniq = Array.from(new Set(msgs))
-    return uniq.join(' • ')
-  }
-  return 'Falha ao criar ingresso'
-}
-import { createEvent, uploadEventImage, createTicketType, publishEvent } from '../../services/events'
-import { useToast } from '../../hooks/useToast'
-import { api } from '../../services/api'
 
-type Props = { open: boolean; onClose: () => void; user: User | null; onCreated?: (id: string) => void }
-
-export default function CreateEventModal({ open, onClose, user, onCreated }: Readonly<Props>) {
+export default function CreateEventPage() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const { show } = useToast()
+  
   const [form, setForm] = useState({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', endDate: todayYMD(), endTime: '10:00', capacity: '0' })
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -269,6 +294,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
   const [tts, setTts] = useState<Array<TicketItem>>([])
   const [step, setStep] = useState<StepId>(1)
   const [createdEventId, setCreatedEventId] = useState<string>('')
+  
   const totalQty = tts.reduce((s, t) => s + (Number(t.quantity || 0) || 0), 0)
   const totalRevenue = tts.reduce((s, t) => {
     const q = Number(t.quantity || 0) || 0
@@ -276,20 +302,13 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     return s + q * p
   }, 0)
 
-  const resetState = useCallback(() => {
-    setForm({ title: '', description: '', location: '', startDate: todayYMD(), startTime: '08:00', endDate: todayYMD(), endTime: '10:00', capacity: '0' })
-    setFile(null)
-    if (preview) URL.revokeObjectURL(preview)
-    setPreview(null)
-    setTts([])
-    setStep(1)
-    setCreatedEventId('')
-  }, [preview])
-
-  const handleClose = useCallback(() => {
-    resetState()
-    onClose()
-  }, [onClose, resetState])
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!user) {
+        // You might want to redirect to login or show a message
+        // For now, let's just stay here or maybe redirect home
+    }
+  }, [user, navigate])
 
   useEffect(() => {
     let cancelled = false
@@ -297,25 +316,16 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       try { const cfg = await api.imageConfig(); if (!cancelled) setImgCfg(cfg) } catch { setImgCfg(c => c) }
     })()
     return () => { cancelled = true }
-  }, [open])
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
-    globalThis.addEventListener('keydown', onKey)
-    return () => globalThis.removeEventListener('keydown', onKey)
-  }, [open, handleClose])
+  }, [])
 
   useEffect(() => {
-    if (!open) return
     if (step !== 2) return
     setTts(list => {
       const qty = String(Number(form.capacity || 0))
       const first = list[0] ? { ...list[0], quantity: qty } : { id: makeTempId(), name:'', paid:false, price:'0', quantity: qty }
       return [first]
     })
-  }, [open, step, form.capacity])
-
-  if (!open) return null
+  }, [step, form.capacity])
 
   function imageHint(cfg: typeof imgCfg) {
     return cfg ? `Máx ${cfg.uploadMaxMB} MB, mín ${cfg.minWidth}x${cfg.minHeight}, formatos PNG/JPEG/WebP` : `Mín 600x400, formatos PNG/JPEG/WebP`
@@ -346,10 +356,9 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
     img.src = url
   }
 
-
   const hint = imageHint(imgCfg)
 
-  async function onSubmit() {
+  async function onSubmitStep1() {
     setLoading(true)
     try {
       const err = validateDates(form.startDate, form.startTime, form.endDate, form.endTime)
@@ -357,7 +366,6 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       setStep(2)
     } finally { setLoading(false) }
   }
-
 
   async function onFinalizeAndPublish() {
     setLoading(true)
@@ -391,8 +399,7 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       }
       await publishEvent(id)
       show({ text: 'Evento publicado', kind: 'ok' })
-      onCreated?.(id)
-      handleClose()
+      navigate('/') // Go back to home
     } catch (e: unknown) {
       const msg = eventCreateErrorText(e)
       show({ text: msg, kind: 'err' })
@@ -411,7 +418,6 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       startTime: form.startTime,
       endDate: form.endDate,
       endTime: form.endTime,
-      
       capacity: form.capacity,
       onTitleChange: (v)=>setForm(f=>({ ...f, title: v })),
       onDescriptionChange: (v)=>setForm(f=>({ ...f, description: v })),
@@ -420,13 +426,12 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       onStartTimeChange: (v)=>setForm(f=>({ ...f, startTime: v })),
       onEndDateChange: (v)=>setForm(f=>({ ...f, endDate: v })),
       onEndTimeChange: (v)=>setForm(f=>({ ...f, endTime: v })),
-      
       onCapacityChange: (v)=>setForm(f=>({ ...f, capacity: v })),
       handleImageChange,
       loading,
       user,
-      onClose: handleClose,
-      onSubmit: () => { onSubmit() },
+      onCancel: () => { navigate('/') },
+      onSubmit: () => { onSubmitStep1() },
     })
   } else if (step === 2) {
     section = Step2Section({
@@ -450,47 +455,43 @@ export default function CreateEventModal({ open, onClose, user, onCreated }: Rea
       onFinalizeAndPublish: () => { void onFinalizeAndPublish() },
     })
   }
+
   return (
-    <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) handleClose() }}>
-      <div className={styles.modal} style={{ position: 'relative' }}>
-        <button 
-          onClick={handleClose} 
-          style={{ 
-            position: 'absolute', 
-            top: 24, 
-            right: 24, 
-            background: 'none', 
-            border: 'none', 
-            fontSize: 26, 
-            fontWeight: 800, 
-            color: '#dc2626', 
-            cursor: 'pointer', 
-            zIndex: 10,
-            padding: 0,
-            lineHeight: 1
-          }}
-          aria-label="Fechar"
-        >
-          ✕
-        </button>      
+    <div className={styles.page}>
+      <Header
+        user={user}
+        onCreate={() => {}} // Already on create page
+        onOpenMyEvents={() => navigate('/?view=my-events')}
+        onOpenMyTickets={() => navigate('/?view=my-tickets')}
+        onOpenDevices={() => navigate('/?view=devices')}
+        onLoginOpen={() => { /* Handle login if needed, or redirect */ }}
+        onLogout={() => { /* Handle logout */ }}
+        onMakeOrder={() => {}}
+        onGoHome={() => navigate('/')}
+      />
+      
+      <main className={styles.container}>
+        <h1 className={styles.title}>Criar Novo Evento</h1>
+        
         {StepperUI(step)}
-        <div className={styles.section}>
-          <div className={styles.content}>
-            <div className={styles.card}>
-              {section}
-            </div>
-            <aside className={styles.sidebar}>
-              <div className={styles.summaryTitle}>Resumo</div>
-              <div className={styles.summaryBox}>
-                <div className={styles.summaryRow}><span>Evento</span><span>{form.title || '—'}</span></div>
-                <div className={styles.summaryRow}><span>Status</span><span>{createdEventId ? 'Criado' : 'Rascunho'}</span></div>
-                <div className={styles.summaryRow}><span>Ingressos</span><span>{totalQty}</span></div>
-                <div className={styles.summaryRow}><span>Receita potencial</span><span>{`R$ ${totalRevenue.toFixed(2)}`}</span></div>
-              </div>
-            </aside>
+        
+        <div className={styles.content}>
+          <div className={styles.card}>
+            {section}
           </div>
+          <aside className={styles.sidebar}>
+            <div className={styles.summaryTitle}>Resumo</div>
+            <div className={styles.summaryBox}>
+              <div className={styles.summaryRow}><span>Evento</span><span>{form.title || '—'}</span></div>
+              <div className={styles.summaryRow}><span>Status</span><span>{createdEventId ? 'Criado' : 'Rascunho'}</span></div>
+              <div className={styles.summaryRow}><span>Ingressos</span><span>{totalQty}</span></div>
+              <div className={styles.summaryRow}><span>Receita potencial</span><span>{`R$ ${totalRevenue.toFixed(2)}`}</span></div>
+            </div>
+          </aside>
         </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   )
 }

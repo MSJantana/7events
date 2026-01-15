@@ -69,15 +69,35 @@ export default function Header({
   return (
     <header className={styles.header}>
       <div className={styles.container}>
-        <div 
-          style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
+        <button 
+          type="button"
           onClick={onGoHome}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            font: 'inherit',
+            color: 'inherit'
+          }}
         >
           <div className={styles.brand} style={{ display: 'flex', alignItems: 'center' }}>
             <SevenEventsLogo />
           </div>
-        </div>
-
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            globalThis.open('/device/login', '_blank', 'noopener,noreferrer')
+          }}
+          className={styles.pill}
+        >
+          <span className="mi" aria-hidden>barcode_reader</span>
+          <span>LeitorQrCode</span>
+        </button>
         <nav className={styles.nav}>
           <button
             onClick={() => {
@@ -121,19 +141,21 @@ export default function Header({
             <span>Meus ingressos</span>
           </button>
 
-          <button
-            onClick={() => {
-              if (user) {
-                onOpenDevices()
-              } else {
-                onLoginOpen()
-              }
-            }}
-            className={styles.link}
-          >
-            <span className="mi" aria-hidden>devices</span>
-            <span>Dispositivos</span>
-          </button>
+          {(user?.role === 'ADMIN' || (user?.eventsCount || 0) > 0) && (
+            <button
+              onClick={() => {
+                if (user) {
+                  onOpenDevices()
+                } else {
+                  onLoginOpen()
+                }
+              }}
+              className={styles.link}
+            >
+              <span className="mi" aria-hidden>devices</span>
+              <span>Dispositivos</span>
+            </button>
+          )}
 
           <div className={styles.datePill} aria-hidden>
             <span className="mi">calendar_month</span>

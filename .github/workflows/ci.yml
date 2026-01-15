@@ -14,6 +14,13 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
+    env:
+      DB_USER: ci_user
+      DB_PASSWORD: ci_password
+      DB_HOST: localhost
+      DB_PORT: 3306
+      DB_NAME: ci_db
+      JWT_SECRET: ci_secret
 
     steps:
       - name: Checkout repository
@@ -51,7 +58,7 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/7events-backend:latest,${{ secrets.DOCKERHUB_USERNAME }}/7events-backend:${{ github.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/7events:backend-latest,${{ secrets.DOCKERHUB_USERNAME }}/7events:backend-${{ github.sha }}
 
   frontend:
     name: Build Frontend
@@ -93,4 +100,4 @@ jobs:
         with:
           context: ./frontend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/7events-frontend:latest,${{ secrets.DOCKERHUB_USERNAME }}/7events-frontend:${{ github.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/7events:frontend-latest,${{ secrets.DOCKERHUB_USERNAME }}/7events:frontend-${{ github.sha }}

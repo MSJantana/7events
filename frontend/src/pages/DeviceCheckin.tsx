@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { useDeviceAuth } from '../context/DeviceAuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -36,6 +36,36 @@ export default function DeviceCheckin() {
     }
   }, [isAuthenticated, navigate])
 
+  const handleValidate = useCallback(async (code: string) => {
+    setLoading(true)
+    setResult(null)
+    try {
+      const response = await fetch(`${API_URL}/checkin/validate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': deviceApiKey || ''
+        },
+        body: JSON.stringify({ code })
+      })
+      
+      const data = await response.json()
+      setResult(data)
+      
+      // If success or failure, we keep isProcessing = true to stop scanning
+      // untill user clears the result.
+      
+    } catch (err) {
+      console.error(err)
+      setResult({ success: false, message: 'Erro de conexão ou servidor.' })
+      // On network error, we might want to allow retry immediately? 
+      // Or show error and wait for clear. Let's wait for clear.
+    } finally {
+      setLoading(false)
+      setManualCode('')
+    }
+  }, [deviceApiKey])
+
   useEffect(() => {
     isProcessing.current = false // Reset processing state on mode change
 
@@ -66,56 +96,16 @@ export default function DeviceCheckin() {
       return () => {
         clearTimeout(timer)
         if (scannerRef.current) {
-            try {
-                scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err))
-            } catch (e) {
-                console.error("Error clearing scanner", e)
-            }
+            scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err))
             scannerRef.current = null
         }
       }
-    } else {
+    } else if (scannerRef.current) {
         // Cleanup if switching away from scan mode
-        if (scannerRef.current) {
-            try {
-                scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err))
-            } catch (e) {
-                console.error("Error clearing scanner", e)
-            }
-            scannerRef.current = null
-        }
+        scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err))
+        scannerRef.current = null
     }
-  }, [mode])
-
-  const handleValidate = async (code: string) => {
-    setLoading(true)
-    setResult(null)
-    try {
-      const response = await fetch(`${API_URL}/checkin/validate`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': deviceApiKey || ''
-        },
-        body: JSON.stringify({ code })
-      })
-      
-      const data = await response.json()
-      setResult(data)
-      
-      // If success or failure, we keep isProcessing = true to stop scanning
-      // untill user clears the result.
-      
-    } catch (err) {
-      console.error(err)
-      setResult({ success: false, message: 'Erro de conexão ou servidor.' })
-      // On network error, we might want to allow retry immediately? 
-      // Or show error and wait for clear. Let's wait for clear.
-    } finally {
-      setLoading(false)
-      setManualCode('')
-    }
-  }
+  }, [mode, handleValidate])
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault()

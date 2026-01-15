@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import EventsCarousel from '../components/EventsCarousel'
 import FinalizedEventsRow from '../components/FinalizedEventsRow'
@@ -12,7 +12,6 @@ import { useToast } from '../hooks/useToast'
 import { API_URL, api } from '../services/api'
 import type { EventSummary, EventDetail } from '../types'
 import AuthModal from '../components/modals/AuthModal'
-import CreateEventModal from '../components/modals/CreateEventModal'
 import MyTicketsView from '../components/MyTicketsView'
 import DevicesView from '../components/DevicesView'
 import MyEventsView from '../components/MyEventsView'
@@ -25,11 +24,11 @@ export default function SevenEventsPage() {
   const { events, activeIndex, setActiveIndex, setEvents } = useEventsCarousel()
   const { show } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [finalizedEvents, setFinalizedEvents] = useState<EventSummary[]>([])
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [view, setView] = useState<'home' | 'tickets' | 'devices' | 'my-events'>('home')
   const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string; imageUrl?: string | null } | null>(null)
   const [eventLoading, setEventLoading] = useState(false)
@@ -205,7 +204,7 @@ export default function SevenEventsPage() {
     <div className={pageStyles.page} style={{ position: 'relative' }}>
       <Header
         user={user}
-        onCreate={() => { if (user) { setShowCreateModal(true) } else { setShowAuthModal(true) } }}
+        onCreate={() => { if (user) { navigate('/create-event') } else { setShowAuthModal(true) } }}
         onOpenMyEvents={() => { if (user) { setView('my-events') } else { setShowAuthModal(true) } }}
         onOpenMyTickets={() => { if (user) { setView('tickets') } else { setShowAuthModal(true) } }}
         onOpenDevices={() => { if (user) { setView('devices') } else { setShowAuthModal(true) } }}
@@ -220,26 +219,6 @@ export default function SevenEventsPage() {
 
       {/* removido EventDetailModal */}
       <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onLoggedIn={(u) => { setUser(u); setShowAuthModal(false) }} />
-      <CreateEventModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        user={user}
-        onCreated={async (createdId) => {
-          setShowCreateModal(false)
-          show({ text: 'Atualizando eventos...', kind: 'ok' })
-          try {
-            const j = await api.publishedEvents()
-            if (Array.isArray(j)) setEvents(j as EventSummary[])
-          } catch { setEvents(e => e) }
-          show({ text: 'Eventos atualizados', kind: 'ok' })
-          if (createdId && user) {
-            try {
-              // sempre abrir compra; modal lida com esgotado/expirado
-              await openPurchaseById(createdId)
-            } catch { show({ text: 'Falha ao carregar evento', kind: 'err' }) }
-          }
-        }}
-      />
       <EditEventModal
         key={editEvent?.id || 'none'}
         open={!!editEvent}

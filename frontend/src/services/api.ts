@@ -41,7 +41,7 @@ export function translateError(code?: string): string {
 }
 
 export const api = {
-  whoami: () => fetchJSON<{ user?: { id: string; name: string; email?: string; role: string }, accessToken?: string }>(`${API_URL}/auth/whoami`),
+  whoami: () => fetchJSON<{ user?: { id: string; name: string; email?: string; role: string; eventsCount?: number }, accessToken?: string }>(`${API_URL}/auth/whoami`),
   logout: () => fetchJSON(`${API_URL}/auth/logout`, { method: 'POST' }),
   publishedEvents: () => fetchJSON<Array<unknown>>(`${API_URL}/events?status=PUBLISHED`),
   eventBySlug: (slug: string) => fetchJSON(`${API_URL}/events/slug/${slug}`),

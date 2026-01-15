@@ -27,21 +27,25 @@ router.post('/google', async (req: Request, res: Response) => {
     const payload = ticket.getPayload()
     if (!payload?.email || !payload?.name) return res.status(400).json({ error: 'invalid_google_payload' })
 
-    const user = await prisma.user.upsert({
-      where: { email: payload.email },
-      update: { name: payload.name },
-      create: { email: payload.email, name: payload.name, role: Role.ORGANIZER }
+    const { user, token } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.upsert({
+        where: { email: payload.email },
+        update: { name: payload.name },
+        create: { email: payload.email!, name: payload.name!, role: Role.ORGANIZER }
+      })
+
+      if (payload.sub) {
+        await tx.userGoogle.upsert({
+          where: { sub: payload.sub },
+          update: { email: payload.email!, name: payload.name!, userId: user.id },
+          create: { sub: payload.sub, email: payload.email!, name: payload.name!, userId: user.id }
+        })
+      }
+
+      const token = signJwt({ sub: user.id, role: user.role })
+      return { user, token }
     })
 
-    if (payload.sub) {
-      await prisma.userGoogle.upsert({
-        where: { sub: payload.sub },
-        update: { email: payload.email, name: payload.name, userId: user.id },
-        create: { sub: payload.sub, email: payload.email, name: payload.name, userId: user.id }
-      })
-    }
-
-    const token = signJwt({ sub: user.id, role: user.role })
     return res.json({ token, user })
   } catch (e: any) {
     let alg: string | undefined
@@ -158,9 +162,24 @@ router.get('/whoami', async (req: Request, res: Response) => {
     try { payload = jwt.verify(access, env.JWT_SECRET) } catch { return res.status(401).json({ error: 'unauthenticated' }) }
     const id = String(payload?.sub || '')
     if (!id) return res.status(401).json({ error: 'unauthenticated' })
-    const user = await prisma.user.findUnique({ where: { id } })
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { events: true } }
+      }
+    })
     if (!user) return res.status(404).json({ error: 'user_not_found' })
-    return res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role }, role: user.role, accessToken: access })
+    return res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        eventsCount: user._count.events
+      },
+      role: user.role,
+      accessToken: access
+    })
   } catch {
     return res.status(500).json({ error: 'whoami_failed' })
   }
@@ -203,7 +222,12 @@ router.post('/local/register', async (req: Request, res: Response) => {
 router.post('/local/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = localLoginSchema.parse(req.body)
-    const user = await prisma.user.findUnique({ where: { email } })
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        _count: { select: { events: true } }
+      }
+    })
     if (!user?.passwordHash) return res.status(401).json({ error: 'invalid_credentials' })
     const [salt, stored] = String(user.passwordHash).split(':')
     const verify = scryptSync(password, salt, 32).toString('hex')
@@ -226,7 +250,17 @@ router.post('/local/login', async (req: Request, res: Response) => {
       sameSite: 'lax',
       maxAge: env.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000
     })
-    return res.json({ accessToken, refreshToken, user })
+    return res.json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        eventsCount: user._count.events
+      }
+    })
   } catch (e: any) {
     if (e?.issues) return res.status(400).json({ error: 'invalid_body', details: e.issues })
     return res.status(500).json({ error: 'local_login_failed' })
@@ -278,16 +312,21 @@ router.post('/dev/admin-token', async (req: Request, res: Response) => {
     const n = name || 'Admin'
     const salt = randomBytes(16).toString('hex')
     const hash = scryptSync('dev-admin-password', salt, 32).toString('hex')
-    const user = await prisma.user.upsert({
-      where: { email: e },
-      update: { name: n, role: Role.ADMIN, passwordHash: `${salt}:${hash}` },
-      create: { email: e, name: n, role: Role.ADMIN, passwordHash: `${salt}:${hash}` }
+    
+    const { user, accessToken, refreshToken } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.upsert({
+        where: { email: e },
+        update: { name: n, role: Role.ADMIN, passwordHash: `${salt}:${hash}` },
+        create: { email: e, name: n, role: Role.ADMIN, passwordHash: `${salt}:${hash}` }
+      })
+      const sid = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+      const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
+      await tx.loginSession.create({ data: { userId: user.id, sessionId: sid, expiresAt } })
+      const accessToken = signJwt({ sub: user.id, role: user.role, sid }, env.ACCESS_TOKEN_DAYS)
+      const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid }, env.REFRESH_TOKEN_DAYS)
+      return { user, accessToken, refreshToken }
     })
-    const sid = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
-    await prisma.loginSession.create({ data: { userId: user.id, sessionId: sid, expiresAt } })
-    const accessToken = signJwt({ sub: user.id, role: user.role, sid }, env.ACCESS_TOKEN_DAYS)
-    const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid }, env.REFRESH_TOKEN_DAYS)
+
     return res.json({ accessToken, refreshToken, user })
   } catch {
     return res.status(500).json({ error: 'dev_admin_token_failed' })
@@ -302,16 +341,21 @@ router.post('/dev/participant-token', async (req: Request, res: Response) => {
     const n = name || 'Organizer'
     const salt = randomBytes(16).toString('hex')
     const hash = scryptSync('dev-organizer-password', salt, 32).toString('hex')
-    const user = await prisma.user.upsert({
-      where: { email: e },
-      update: { name: n, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` },
-      create: { email: e, name: n, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` }
+    
+    const { user, accessToken, refreshToken } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.upsert({
+        where: { email: e },
+        update: { name: n, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` },
+        create: { email: e, name: n, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` }
+      })
+      const sid = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+      const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
+      await tx.loginSession.create({ data: { userId: user.id, sessionId: sid, expiresAt } })
+      const accessToken = signJwt({ sub: user.id, role: user.role, sid }, env.ACCESS_TOKEN_DAYS)
+      const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid }, env.REFRESH_TOKEN_DAYS)
+      return { user, accessToken, refreshToken }
     })
-    const sid = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
-    await prisma.loginSession.create({ data: { userId: user.id, sessionId: sid, expiresAt } })
-    const accessToken = signJwt({ sub: user.id, role: user.role, sid }, env.ACCESS_TOKEN_DAYS)
-    const refreshToken = signJwt({ sub: user.id, type: 'refresh', sid }, env.REFRESH_TOKEN_DAYS)
+
     return res.json({ accessToken, refreshToken, user })
   } catch {
     return res.status(500).json({ error: 'dev_participant_token_failed' })

@@ -6,6 +6,7 @@ interface DeviceItemProps {
   readonly onToggleExpand: () => void
   readonly onDelete: (id: string) => void
   readonly onCopy: (text: string) => void
+  readonly onToggleStatus: (id: string) => void
 }
 
 export function DeviceItem({ 
@@ -13,10 +14,11 @@ export function DeviceItem({
   isExpanded, 
   onToggleExpand, 
   onDelete, 
-  onCopy 
+  onCopy,
+  onToggleStatus
 }: DeviceItemProps) {
   return (
-    <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', opacity: device.enabled ? 1 : 0.6 }}>
       {/* Header */}
       <button 
         type="button"
@@ -36,6 +38,7 @@ export function DeviceItem({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: device.enabled ? '#10b981' : '#9ca3af' }} title={device.enabled ? 'Ativo' : 'Inativo'} />
           <h4 style={{ margin: 0, fontSize: '1.125rem', color: '#111827' }}>{device.name}</h4>
           <span style={{ fontSize: '0.875rem', color: '#6b7280', background: '#f3f4f6', padding: '2px 8px', borderRadius: '9999px' }}>
             {device.event?.title || 'Global'}
@@ -64,7 +67,22 @@ export function DeviceItem({
             </div>
           </div>
           
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onToggleStatus(device.id) }}
+              style={{ 
+                background: 'white', 
+                color: device.enabled ? '#d97706' : '#10b981', 
+                border: `1px solid ${device.enabled ? '#fcd34d' : '#6ee7b7'}`, 
+                padding: '8px 16px', 
+                borderRadius: '6px', 
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              {device.enabled ? 'Desativar' : 'Ativar'}
+            </button>
+
             <button 
               onClick={(e) => { e.stopPropagation(); onDelete(device.id) }}
               style={{ 
@@ -77,7 +95,7 @@ export function DeviceItem({
                 fontWeight: 500
               }}
             >
-              Excluir Dispositivo
+              Excluir
             </button>
           </div>
         </div>

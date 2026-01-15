@@ -18,3 +18,9 @@ export async function deleteDevice(id: string): Promise<void> {
     method: 'DELETE'
   })
 }
+
+export async function toggleDevice(id: string): Promise<Device> {
+  return fetchJSON(`${API_URL}/devices/${id}/toggle`, {
+    method: 'PATCH'
+  })
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 // palette removida: usamos variáveis CSS de modal.module.css
 import { useExpired } from '../../hooks/useExpired'
 import type { EventDetail, TicketType } from '../../types'
@@ -145,7 +145,7 @@ function StepSwitcher(p: Readonly<PurchaseProps>) {
   return null
 }
 
-function CanceledEventView({ data, selected, qty }: { data: EventDetail; selected: TicketType | undefined; qty: number }) {
+function CanceledEventView({ data, selected, qty }: Readonly<{ data: EventDetail; selected: TicketType | undefined; qty: number }>) {
   const imageUrl = data.imageUrl || ''
   return (
     <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
@@ -334,7 +334,7 @@ export default function EventPurchaseModal({ open, loading, error, data, selecte
   const finalizeTimerRef = useRef<number | null>(null)
   const [finalized, setFinalized] = useState(false)
 
-  function resetState() {
+  const resetState = useCallback(() => {
     setStep(1)
     setOrderId('')
     setPaymentMethod('')
@@ -342,12 +342,12 @@ export default function EventPurchaseModal({ open, loading, error, data, selecte
     setPaymentValid(false)
     setFinalized(false)
     if (finalizeTimerRef.current) { clearTimeout(finalizeTimerRef.current); finalizeTimerRef.current = null }
-  }
+  }, [])
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     resetState()
     onClose()
-  }
+  }, [onClose, resetState])
 
   useEffect(() => {
     if (!open || !data?.id) return
@@ -392,8 +392,8 @@ useEffect(() => {
         setFinalized(true)
         setFlowStatus({ text: 'Compra finalizada', kind: 'ok' })
       }, 300000) as unknown as number
-    } else {
-      if (finalizeTimerRef.current) { clearTimeout(finalizeTimerRef.current); finalizeTimerRef.current = null }
+    } else if (finalizeTimerRef.current) {
+      clearTimeout(finalizeTimerRef.current); finalizeTimerRef.current = null
     }
   }, [open, step, paymentMethod, finalized])
   useEffect(() => {
@@ -405,7 +405,7 @@ useEffect(() => {
     }
     globalThis.addEventListener('keydown', onKey)
     return () => globalThis.removeEventListener('keydown', onKey)
-  }, [open, onClose, step])
+  }, [open, handleClose, step])
   const selected = tickets.find(tt => tt.id === selectedTT)
   const maxQty = Math.max(1, Number(selected?.quantity || 1))
   const selectedAvailable = Number(selected?.quantity || 0) > 0

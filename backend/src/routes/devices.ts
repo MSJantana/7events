@@ -72,9 +72,9 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
         .replaceAll(/[^A-Z0-9]/g, '')
         
       if (!prefix) prefix = 'EVT'
-    } else {
+    } else if (!isAdmin(req)) {
       // Only admin can create global devices (not bound to event)
-      if (!isAdmin(req)) return res.status(403).json({ error: 'Apenas admins podem criar dispositivos globais' })
+      return res.status(403).json({ error: 'Apenas admins podem criar dispositivos globais' })
     }
 
     // Format: PREFIX_UUID
@@ -98,6 +98,34 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 })
 
+// Toggle device status
+router.patch('/:id/toggle', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const device = await prisma.checkinDevice.findUnique({ where: { id } })
+    if (!device) return res.status(404).json({ error: 'Dispositivo não encontrado' })
+
+    if (device.eventId) {
+        const event = await prisma.event.findUnique({ where: { id: device.eventId } })
+        if (event && !isAdmin(req) && !isOwner(req, event.userId)) {
+            return res.status(403).json({ error: 'Sem permissão' })
+        }
+    } else if (!isAdmin(req)) {
+        return res.status(403).json({ error: 'Sem permissão' })
+    }
+
+    const updated = await prisma.checkinDevice.update({
+      where: { id },
+      data: { enabled: !device.enabled }
+    })
+
+    return res.json(updated)
+  } catch (e: any) {
+    console.error('Erro ao alternar status do dispositivo:', e)
+    return res.status(500).json({ error: 'Falha ao atualizar dispositivo' })
+  }
+})
+
 // Delete device
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -110,14 +138,23 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
         if (event && !isAdmin(req) && !isOwner(req, event.userId)) {
             return res.status(403).json({ error: 'Sem permissão' })
         }
-    } else {
-        if (!isAdmin(req)) return res.status(403).json({ error: 'Sem permissão' })
+    } else if (!isAdmin(req)) {
+        return res.status(403).json({ error: 'Sem permissão' })
     }
 
-    await prisma.checkinDevice.delete({ where: { id } })
+    // Desvincular logs antes de deletar para evitar erro de constraint
+    await prisma.$transaction([
+      prisma.ticketValidationLog.updateMany({
+        where: { deviceId: id },
+        data: { deviceId: null }
+      }),
+      prisma.checkinDevice.delete({ where: { id } })
+    ])
+
     return res.status(204).send()
-  } catch {
-    return res.status(500).json({ error: 'Falha ao deletar dispositivo' })
+  } catch (e: any) {
+    console.error('Erro ao deletar dispositivo:', e)
+    return res.status(500).json({ error: 'Falha ao deletar dispositivo', details: e.message })
   }
 })
 

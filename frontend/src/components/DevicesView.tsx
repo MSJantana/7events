@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { Device, EventSummary } from '../types'
-import { getDevices, createDevice, deleteDevice } from '../services/devices'
+import { getDevices, createDevice, deleteDevice, toggleDevice } from '../services/devices'
 import { getEventsByStatus } from '../services/events'
 import { useToast } from '../hooks/useToast'
 import { useAuth } from '../hooks/useAuth'
@@ -92,21 +92,53 @@ export default function DevicesView() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Tem certeza que deseja excluir este dispositivo?')) return
+  async function deleteDeviceAndUpdate(id: string) {
     try {
       await deleteDevice(id)
       show({ text: 'Dispositivo removido', kind: 'ok' })
       setDevices(list => list.filter(d => d.id !== id))
-    } catch (e) {
-        console.error(e)
-      show({ text: 'Erro ao remover dispositivo', kind: 'err' })
+    } catch (err: unknown) {
+      console.error(err)
+      const e = err as { message?: string; details?: unknown }
+      const msg = e.details || e.message || 'Erro ao remover dispositivo'
+      show({ text: typeof msg === 'string' ? msg : JSON.stringify(msg), kind: 'err' })
     }
+  }
+
+  function handleDelete(id: string) {
+    const onConfirm = () => { void deleteDeviceAndUpdate(id) }
+    show({
+      text: 'Tem certeza que deseja excluir este dispositivo?',
+      kind: 'err',
+      actions: [
+        {
+          label: 'Cancelar',
+          kind: 'ghost',
+          onClick: () => {}
+        },
+        {
+          label: 'Excluir',
+          kind: 'danger',
+          onClick: onConfirm
+        }
+      ]
+    })
   }
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text)
     show({ text: 'Copiado!', kind: 'ok' })
+  }
+
+  async function handleToggleStatus(id: string) {
+    try {
+      const updated = await toggleDevice(id)
+      setDevices(list => list.map(d => d.id === id ? updated : d))
+      show({ text: updated.enabled ? 'Dispositivo ativado' : 'Dispositivo desativado', kind: 'ok' })
+    } catch (e: unknown) {
+      console.error(e)
+      show({ text: 'Falha ao atualizar status', kind: 'err' })
+    }
   }
 
   const renderList = () => {
@@ -132,6 +164,7 @@ export default function DevicesView() {
                   onToggleExpand={() => setExpandedId(expandedId === dev.id ? null : dev.id)}
                   onDelete={handleDelete}
                   onCopy={copyToClipboard}
+                  onToggleStatus={handleToggleStatus}
                 />
             ))}
 

@@ -35,7 +35,7 @@ export async function cancelEvent(eventId: string): Promise<void> {
   await fetchJSON(`${API_URL}/events/${eventId}/cancel`, { method: 'POST' })
 }
 
-export async function updateEventBasic(eventId: string, payload: Partial<{ title: string; description: string; location: string; startDate: string }>): Promise<void> {
+export async function updateEventBasic(eventId: string, payload: Partial<{ title: string; description: string; location: string; startDate: string; startTime: string; endDate: string; endTime: string }>): Promise<void> {
   await fetchJSON(`${API_URL}/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 }
 
