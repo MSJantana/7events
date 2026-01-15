@@ -49,8 +49,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: msoftsantana
+          password: ${{ secrets.MSOFTSANTANA }}
 
       - name: Build and push Backend Docker image
         if: github.event_name != 'pull_request'
@@ -58,7 +58,7 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/7events:backend-latest,${{ secrets.DOCKERHUB_USERNAME }}/7events:backend-${{ github.sha }}
+          tags: msoftsantana/7events:backend-latest,msoftsantana/7events:backend-${{ github.sha }}
 
   frontend:
     name: Build Frontend
@@ -91,8 +91,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: msoftsantana
+          password: ${{ secrets.MSOFTSANTANA }}
 
       - name: Build and push Frontend Docker image
         if: github.event_name != 'pull_request'
@@ -100,4 +100,4 @@ jobs:
         with:
           context: ./frontend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/7events:frontend-latest,${{ secrets.DOCKERHUB_USERNAME }}/7events:frontend-${{ github.sha }}
+          tags: msoftsantana/7events:frontend-latest,msoftsantana/7events:frontend-${{ github.sha }}
