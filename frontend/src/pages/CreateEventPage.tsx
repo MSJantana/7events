@@ -223,7 +223,7 @@ function Step1Section(p: Readonly<{ preview: string | null; hint: string; title:
   )
 }
 
-function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number, paid: boolean) => void; onChangePrice: (i: number, price: string) => void; onBack: () => void; onNext: () => void }>): ReactNode {
+function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number, paid: boolean) => void; onChangePrice: (i: number, price: string) => void; onBack: () => void; onNext: () => void; onlyFree: boolean }>): ReactNode {
   return (
     <>
       <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:8 }}>
@@ -231,9 +231,14 @@ function Step2Section(p: Readonly<{ tts: TicketItem[]; onChangePaid: (i: number,
         {p.tts.map((t, i) => (
           <div key={t.id} className={styles.item}>
             <div style={{ display:'grid', gridTemplateColumns:'140px 1fr 260px', gap:6, alignItems:'center', width:'100%' }}>
-              <select value={t.paid ? 'paid' : 'free'} onChange={e=>p.onChangePaid(i, e.target.value==='paid')} className={styles.inputSm}>
+              <select 
+                value={t.paid ? 'paid' : 'free'} 
+                onChange={e=>p.onChangePaid(i, e.target.value==='paid')} 
+                className={styles.inputSm}
+                disabled={p.onlyFree}
+              >
                 <option value="free">Grátis</option>
-                <option value="paid">Pago</option>
+                {!p.onlyFree && <option value="paid">Pago</option>}
               </select>
               <div className={styles.qtyWrap}>
                 <span className={styles.qtyLabel}>Quantidade</span>
@@ -294,6 +299,23 @@ export default function CreateEventPage() {
   const [tts, setTts] = useState<Array<TicketItem>>([])
   const [step, setStep] = useState<StepId>(1)
   const [createdEventId, setCreatedEventId] = useState<string>('')
+  const [onlyFree, setOnlyFree] = useState(() => {
+    return localStorage.getItem('pref_only_free_tickets') === 'true'
+  })
+
+  useEffect(() => {
+    const handler = () => {
+      setOnlyFree(localStorage.getItem('pref_only_free_tickets') === 'true')
+    }
+    globalThis.addEventListener('storage', handler)
+    return () => globalThis.removeEventListener('storage', handler)
+  }, [])
+
+  useEffect(() => {
+    if (onlyFree) {
+      setTts(list => list.map(t => t.paid ? { ...t, paid: false, price: '0' } : t))
+    }
+  }, [onlyFree])
   
   const totalQty = tts.reduce((s, t) => s + (Number(t.quantity || 0) || 0), 0)
   const totalRevenue = tts.reduce((s, t) => {
@@ -445,6 +467,7 @@ export default function CreateEventPage() {
       onChangePrice: (i, price)=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], price }; return copy }),
       onBack: ()=>setStep(1),
       onNext: ()=>setStep(3),
+      onlyFree
     })
   } else if (step === 3) {
     section = Step3Section({

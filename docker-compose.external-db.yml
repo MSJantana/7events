@@ -1,22 +1,4 @@
 services:
-  db:
-    image: mysql:8.0
-    container_name: 7events-db
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
-
   backend:
     image: msoftsantana/7events:backend-latest
     container_name: 7events-backend
@@ -28,9 +10,6 @@ services:
       JWT_SECRET: ${JWT_SECRET}
     volumes:
       - ./uploads:/app/uploads
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - app-network
     restart: always
@@ -55,9 +34,6 @@ services:
     networks:
       - app-network
     restart: always
-
-volumes:
-  db_data:
 
 networks:
   app-network:

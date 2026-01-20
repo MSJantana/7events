@@ -15,6 +15,7 @@ type Props = Readonly<{
 }>
 
 import { SevenEventsLogo } from './common/SevenEventsLogo'
+import SettingsModal from './modals/SettingsModal'
 
 export default function Header({
   user,
@@ -28,6 +29,7 @@ export default function Header({
   onGoHome,
 }: Props) {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const profileRef = useRef<HTMLDivElement|null>(null)
   useEffect(() => {
     if (!showProfileMenu) return
@@ -219,6 +221,17 @@ export default function Header({
                     className={styles.btn}
                     onClick={() => {
                       setShowProfileMenu(false)
+                      setShowSettings(true)
+                    }}
+                  >
+                    <span className="mi" aria-hidden>settings</span>
+                    <span>Configurações</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btn}
+                    onClick={() => {
+                      setShowProfileMenu(false)
                       onLogout()
                     }}
                   >
@@ -231,6 +244,7 @@ export default function Header({
           </div>
         </nav>
       </div>
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
     </header>
   )
 }

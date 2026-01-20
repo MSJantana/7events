@@ -44,7 +44,8 @@ function renderTicketItem(
   orig: EditTTItem[],
   step: StepId,
   lockEdit: boolean,
-  setTts: Dispatch<SetStateAction<EditTTItem[]>>
+  setTts: Dispatch<SetStateAction<EditTTItem[]>>,
+  onlyFree?: boolean
 ) {
   const old = orig.find(o => o.id === t.id)
   const changed = !!old && String(old.quantity) !== String(t.quantity)
@@ -83,11 +84,11 @@ function renderTicketItem(
           type="number"
           min={0}
           step="0.01"
-          value={t.price}
+          value={onlyFree ? '0.00' : t.price}
           onChange={e=>setTts(list=>{ const copy = list.slice(); copy[i] = { ...copy[i], price: e.target.value }; return copy })}
           className={styles.inputSm}
           style={{ width:120 }}
-          disabled={lockEdit || step === 3}
+          disabled={lockEdit || step === 3 || onlyFree}
         />
       </div>
       {changed ? (
@@ -174,6 +175,16 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
   const [tts, setTts] = useState<EditTTItem[]>([])
   const origTtsRef = useRef<EditTTItem[]>([])
   const [lockEdit, setLockEdit] = useState(false)
+  const [onlyFree, setOnlyFree] = useState(false)
+
+  useEffect(() => {
+    setOnlyFree(localStorage.getItem('pref_only_free_tickets') === 'true')
+    const handler = () => {
+      setOnlyFree(localStorage.getItem('pref_only_free_tickets') === 'true')
+    }
+    globalThis.addEventListener('storage', handler)
+    return () => globalThis.removeEventListener('storage', handler)
+  }, [open])
 
   useEffect(() => {
     let cancelled = false
@@ -271,7 +282,7 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
           payload.quantity = Number(ch.quantity || 0)
         }
         const oldPrice = Number(old.price || 0)
-        const newPrice = Number(ch.price || 0)
+        const newPrice = onlyFree ? 0 : Number(ch.price || 0)
         if (Number(oldPrice.toFixed(2)) !== Number(newPrice.toFixed(2))) {
           payload.price = newPrice
         }
@@ -350,7 +361,7 @@ export default function EditEventModal({ open, onClose, eventId, initial, curren
                 <div className={styles.sectionTitle}><span aria-hidden>🎟️</span><span>Ingressos</span></div>
                 {tts.length === 0 ? (
                   notice('info', 'Nenhum ingresso cadastrado')
-                ) : tts.map((t, i) => renderTicketItem(t, i, origTtsRef.current, step, lockEdit, setTts))}
+                ) : tts.map((t, i) => renderTicketItem(t, i, origTtsRef.current, step, lockEdit, setTts, onlyFree))}
                 {step === 2 && (
                   <div className={styles.actions}>
                     <button className={`${styles.btn} ${styles.ghost}`} onClick={()=>setStep(1)}>Voltar</button>

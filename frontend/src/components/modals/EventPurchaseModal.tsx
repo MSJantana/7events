@@ -172,7 +172,11 @@ function Step1View(p: Readonly<PurchaseProps>) {
     <div style={{ display:'flex', gap:28, color: 'var(--text)' }}>
       <div style={{ flex:'0 0 360px', width:360, minWidth:280, position:'relative' }}>
         <div style={{ height:200, borderRadius:16, background: imageUrl ? `url(${imageUrl})` : '#111827', backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', boxShadow:'0 10px 24px rgba(0,0,0,0.28)' }} />
-        {isFree && (
+        {p.expiredEvent ? (
+          <div style={{ position:'absolute', top:300, left:75, display:'inline-block', padding:'8px 12px', border:'3px solid #b91c1c', color:'#b91c1c', background:'#fff', borderRadius:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1, transform:'rotate(-12deg)', boxShadow:'0 6px 16px rgba(0,0,0,0.12)' }} aria-label="Evento finalizado carimbo">
+            EVENTO FINALIZADO
+          </div>
+        ) : isFree && (
           <div style={{ position:'absolute', top:300, left:75, display:'inline-block', padding:'8px 12px', border:'3px solid #166534', color:'#166534', background:'#fff', borderRadius:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1, transform:'rotate(-12deg)', boxShadow:'0 6px 16px rgba(0,0,0,0.12)' }} aria-label="Evento grátis carimbo">
             EVENTO GRÁTIS
           </div>
@@ -242,11 +246,16 @@ function PurchaseContent(p: Readonly<PurchaseProps>) {
   if (p.loading) { return notice('info', 'Carregando...') }
   if (p.error) { return notice('err', p.errMsg) }
   if (!p.data) { return null }
-  if (p.data.status !== 'PUBLISHED') {
+  if (p.data.status !== 'PUBLISHED' && p.data.status !== 'FINALIZED') {
     if (p.data.status === 'CANCELED' && !p.expiredEvent) {
       return <CanceledEventView data={p.data} selected={p.selected} qty={p.qty} />
     }
-    return notice('info', 'Evento encontrado, porém não ativo')
+    // Se estiver expirado, permitimos visualizar (modo somente leitura/histórico)
+    if (p.expiredEvent) {
+      // Deixa passar para o switch abaixo
+    } else {
+      return notice('info', 'Evento encontrado, porém não ativo')
+    }
   }
   switch (p.step) {
     case 1: return <Step1View {...p} />
