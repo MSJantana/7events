@@ -38,6 +38,9 @@ services:
   frontend:
     image: msoftsantana/7events:frontend-latest
     container_name: 7events-frontend
+    environment:
+      - VITE_GOOGLE_LOGIN_ENABLED=${VITE_GOOGLE_LOGIN_ENABLED:-true}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
     networks:
       - app-network
     restart: always

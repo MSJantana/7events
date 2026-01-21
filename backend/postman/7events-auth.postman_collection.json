@@ -28,7 +28,44 @@
     }
   ],
   "item": [
-    
+    {
+      "name": "Local Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/auth/local/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Password123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login bem-sucedido (200)', function(){ pm.expect(pm.response.code).to.eql(200); });",
+                  "const js = pm.response.json();",
+                  "if (js.accessToken) {",
+                  "    pm.environment.set('accessToken', js.accessToken);",
+                  "    console.log('AccessToken updated');",
+                  "}",
+                  "if (js.refreshToken) pm.environment.set('refreshToken', js.refreshToken);",
+                  "if (js.user && js.user.id) pm.environment.set('userId', js.user.id);",
+                  "pm.test('Token recebido', function(){ pm.expect(js.accessToken).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "Google Auth Flow",
       "item": [
@@ -97,6 +134,7 @@
         {
           "name": "Dev Helpers",
           "item": [
+            { "name": "Root API", "request": { "method": "GET", "url": "{{baseUrl}}/" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Root API OK (200)', function(){ pm.expect(pm.response.code).to.eql(200); });" ] } }] },
             { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
             { "name": "Load Env (server)", "request": { "method": "GET", "url": "{{baseUrl}}/debug/postman/env" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "Object.entries(js).forEach(([k,v]) => { if (typeof v === 'string') pm.environment.set(k, v); });" ] } }] },
             { "name": "Dev Admin Token", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/auth/dev/admin-token", "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"name\": \"Admin\"\n}" } }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "const js = pm.response.json();", "if (js.accessToken) pm.environment.set('accessToken', js.accessToken);", "if (js.user && js.user.id) pm.environment.set('userId', js.user.id);" ] } }] },

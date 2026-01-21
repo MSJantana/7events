@@ -17,7 +17,7 @@ import devicesRouter from './routes/devices'
 const app = express()
 
 app.use(cors({
-  origin: env.FRONTEND_URL,
+  origin: env.CORS_ORIGINS,
   credentials: true
 }))
 app.use(express.json())
@@ -27,6 +27,15 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', env: env.NODE_ENV })
+})
+
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    app: '7Events API',
+    status: 'online',
+    docs: '/docs (not implemented yet)',
+    health: '/health'
+  })
 })
 
 app.use('/auth', authRouter)

@@ -40,6 +40,7 @@ export default function AuthModal({ open, onClose, onLoggedIn, buySlug, buyId }:
 
   const queryState = getQueryState()
   const googleHref = `${API_URL}/auth/google${queryState}`
+  const googleLoginEnabled = (globalThis.env?.GOOGLE_LOGIN_ENABLED ?? import.meta.env.VITE_GOOGLE_LOGIN_ENABLED) !== 'false'
 
   return (
     <div className={styles.overlay} onPointerDown={(e)=>{ if (e.currentTarget===e.target) onClose() }}>
@@ -47,8 +48,12 @@ export default function AuthModal({ open, onClose, onLoggedIn, buySlug, buyId }:
         <Header />
         <div className={styles.section} style={{ padding: 0, gap: 16 }}>
           {status.text && <StatusNotice status={status} />}
-          <GoogleButton href={googleHref} />
-          <Divider />
+          {googleLoginEnabled && (
+            <>
+              <GoogleButton href={googleHref} />
+              <Divider />
+            </>
+          )}
           <LocalAuthForm
             showRegister={showRegister} setShowRegister={setShowRegister}
             name={name} setName={setName} nameError={nameError}

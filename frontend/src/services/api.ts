@@ -1,4 +1,4 @@
-export const API_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000'
+export const API_URL = (globalThis.env?.API_URL || import.meta.env.VITE_API_URL as string) || 'http://localhost:4000'
 
 export async function fetchJSON<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   const token = globalThis.localStorage === undefined ? null : globalThis.localStorage.getItem('access_token')

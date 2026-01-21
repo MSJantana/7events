@@ -1,6 +1,8 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
+const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(u => u.trim())
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: Number(process.env.PORT || 4000),
@@ -10,7 +12,8 @@ export const env = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
   GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4000/auth/google/callback',
   POST_LOGIN_REDIRECT_URL: process.env.POST_LOGIN_REDIRECT_URL || 'http://localhost:4000/auth/success',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+  FRONTEND_URL: frontendUrls[0],
+  CORS_ORIGINS: frontendUrls,
   RESERVATION_TTL_MINUTES: Number(process.env.RESERVATION_TTL_MINUTES || 15),
   ACCESS_TOKEN_DAYS: Number(process.env.ACCESS_TOKEN_DAYS || 7),
   REFRESH_TOKEN_DAYS: Number(process.env.REFRESH_TOKEN_DAYS || 30),
