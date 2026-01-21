@@ -204,10 +204,12 @@ router.post('/local/register', async (req: Request, res: Response) => {
     if (!(hasUpper && hasLower && hasDigit)) return res.status(400).json({ error: 'weak_password' })
     const salt = randomBytes(16).toString('hex')
     const hash = scryptSync(password, salt, 32).toString('hex')
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: { name, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` },
-      create: { email, name, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` }
+    
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) return res.status(409).json({ error: 'email_exists' })
+
+    const user = await prisma.user.create({
+      data: { email, name, role: Role.ORGANIZER, passwordHash: `${salt}:${hash}` }
     })
     return res.status(201).json({ id: user.id })
   } catch (e: any) {
