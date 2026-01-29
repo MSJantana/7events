@@ -8,12 +8,15 @@ type Props = {
 
 export default function SettingsModal({ open, onClose }: Readonly<Props>) {
   const [onlyFree, setOnlyFree] = useState(() => {
-    return localStorage.getItem('pref_only_free_tickets') === 'true'
+    // Default to true if not set
+    const val = localStorage.getItem('pref_only_free_tickets')
+    return val === null ? true : val === 'true'
   })
 
   useEffect(() => {
     const handler = () => {
-      setOnlyFree(localStorage.getItem('pref_only_free_tickets') === 'true')
+      const val = localStorage.getItem('pref_only_free_tickets')
+      setOnlyFree(val === null ? true : val === 'true')
     }
     globalThis.addEventListener('storage', handler)
     return () => globalThis.removeEventListener('storage', handler)
@@ -31,54 +34,63 @@ export default function SettingsModal({ open, onClose }: Readonly<Props>) {
 
   return (
     <div className={styles.overlay} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className={styles.modal} style={{ maxWidth: 400 }}>
-        <div className={styles.header}>
-          <div className={styles.title}>Configurações</div>
-          <button onClick={onClose} className={styles.closeBtn}><span className="mi">close</span></button>
+      <div className={styles.modal} style={{ maxWidth: 440, borderRadius: 16, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+        <div className={styles.header} style={{ borderBottom: '1px solid #f3f4f6', padding: '20px 24px' }}>
+          <div className={styles.title} style={{ fontSize: 20, fontWeight: 700 }}>Configurações</div>
+          <button 
+            onClick={onClose} 
+            className={styles.closeBtn}
+            style={{ background: '#f3f4f6', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', color: '#6b7280' }}
+          >
+            <span className="mi" style={{ fontSize: 20 }}>close</span>
+          </button>
         </div>
         
-        <div className={styles.body}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontWeight: 600, color: 'var(--text)' }}>Modo Simplificado</div>
-              <div style={{ fontSize: 13, color: 'var(--gray)' }}>Habilitar cadastro de ingressos somente grátis</div>
+        <div className={styles.body} style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '16px', background: '#f9fafb', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="mi" style={{ color: 'var(--brand)', fontSize: 20 }}>local_activity</span>
+                <div style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Modo Simplificado</div>
+              </div>
+              <div style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.4, maxWidth: 280, marginLeft: 28 }}>
+                Habilitar cadastro de ingressos somente grátis. Ideal para eventos sem fins lucrativos.
+              </div>
             </div>
             
             <button 
               onClick={handleToggle}
               style={{
-                width: 56, height: 26, borderRadius: 99, position: 'relative',
+                width: 52, height: 28, borderRadius: 99, position: 'relative',
                 background: onlyFree ? 'var(--brand)' : '#e5e7eb',
-                border: 'none', cursor: 'pointer', transition: 'background 0.2s',
-                padding: 0
+                border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                padding: 0, marginTop: 2, flexShrink: 0,
+                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
               }}
               role="switch"
               aria-checked={onlyFree}
             >
-              <span style={{
-                position: 'absolute', left: 7, top: '50%', transform: 'translateY(-50%)',
-                fontSize: 10, fontWeight: 700, color: '#fff',
-                opacity: onlyFree ? 1 : 0, transition: 'opacity 0.2s'
-              }}>ON</span>
-              
-              <span style={{
-                position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)',
-                fontSize: 10, fontWeight: 700, color: '#6b7280',
-                opacity: onlyFree ? 0 : 1, transition: 'opacity 0.2s'
-              }}>OFF</span>
-
               <div style={{
-                width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                position: 'absolute', top: 3, left: onlyFree ? 33 : 3,
-                transition: 'left 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                zIndex: 2
-              }} />
+                width: 24, height: 24, borderRadius: '50%', background: '#fff',
+                position: 'absolute', top: 2, left: onlyFree ? 26 : 2,
+                transition: 'left 0.2s cubic-bezier(0.4, 0.0, 0.2, 1)', 
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                {onlyFree && <span className="mi" style={{ fontSize: 14, color: 'var(--brand)', fontWeight: 'bold' }}>check</span>}
+              </div>
             </button>
           </div>
         </div>
 
-        <div className={styles.footer}>
-          <button className={`${styles.btn} ${styles.primary}`} onClick={onClose}>Concluído</button>
+        <div className={styles.footer} style={{ borderTop: '1px solid #f3f4f6', padding: '16px 24px', background: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          <button 
+            className={styles.primary} 
+            onClick={onClose}
+            style={{ width: '100%', padding: '10px', fontSize: 15, fontWeight: 600, borderRadius: 8 }}
+          >
+            Concluído
+          </button>
         </div>
       </div>
     </div>

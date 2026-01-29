@@ -11,9 +11,9 @@ function isValidSignature(filePath: string): boolean {
     const buf = Buffer.alloc(12)
     fs.readSync(fd, buf, 0, 12, 0)
     fs.closeSync(fd)
-    const isPng = buf.slice(0, 8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]))
+    const isPng = buf.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]))
     const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8
-    const isWebp = buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP'
+    const isWebp = buf.subarray(0, 4).toString() === 'RIFF' && buf.subarray(8, 12).toString() === 'WEBP'
     return isPng || isJpeg || isWebp
   } catch {
     return false
@@ -52,9 +52,17 @@ export function removePreviousUnderUploads(baseUrl: string, currentUrl?: string)
   try {
     const prev = currentUrl || ''
     const prefix = `${baseUrl}/uploads/events/`
+    const relativePrefix = `/uploads/events/`
+    
+    let prevFile = ''
     if (prev.startsWith(prefix)) {
+      prevFile = prev.substring(prefix.length)
+    } else if (prev.startsWith(relativePrefix)) {
+      prevFile = prev.substring(relativePrefix.length)
+    }
+
+    if (prevFile) {
       const uploadDir = path.join(process.cwd(), 'uploads', 'events')
-      const prevFile = prev.substring(prefix.length)
       const prevMain = path.join(uploadDir, prevFile)
       const prevThumb = prevFile.endsWith('.webp') ? path.join(uploadDir, prevFile.replace(/\.webp$/, '-thumb.webp')) : ''
       if (fs.existsSync(prevMain)) fs.unlinkSync(prevMain)

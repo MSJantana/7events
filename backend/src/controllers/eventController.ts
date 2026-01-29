@@ -225,7 +225,7 @@ export const eventController = {
       const { mainName } = await processEventImage(tmpPath, uploadDir)
       fs.unlink(tmpPath, () => {})
       removePreviousUnderUploads(base, existing.imageUrl || '')
-      const url = `${base}/uploads/events/${mainName}`
+      const url = `/uploads/events/${mainName}`
       const updated = await eventService.updateEvent(id, { imageUrl: url })
       return res.json(updated)
     } catch (e: any) {

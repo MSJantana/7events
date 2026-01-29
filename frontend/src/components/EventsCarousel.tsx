@@ -23,9 +23,24 @@ function bgForIndex(i: number) {
   return colors[i] ?? '#8b5cf6'
 }
 
+import { API_URL } from '../services/api'
+
 function thumbUrl(imageUrl?: string | null) {
   if (!imageUrl) return undefined
-  return imageUrl.endsWith('.webp') ? imageUrl.replace(/\.webp$/, '-thumb.webp') : imageUrl
+  
+  // Fix: replace localhost with API_URL if present (handling legacy absolute URLs)
+  let url = imageUrl
+  if (url.includes('localhost:4000') && !API_URL.includes('localhost:4000')) {
+    url = url.replace(/https?:\/\/localhost:4000/, API_URL)
+  }
+
+  // Se já for URL absoluta (http/https), usa como está
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url.endsWith('.webp') ? url.replace(/\.webp$/, '-thumb.webp') : url
+  }
+  // Se for caminho relativo, adiciona API_URL
+  const fullUrl = `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+  return fullUrl.endsWith('.webp') ? fullUrl.replace(/\.webp$/, '-thumb.webp') : fullUrl
 }
 
 function computeTransform(offset: number) {

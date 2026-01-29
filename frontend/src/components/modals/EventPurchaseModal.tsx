@@ -165,7 +165,13 @@ function CanceledEventView({ data, selected, qty }: Readonly<{ data: EventDetail
 
 function Step1View(p: Readonly<PurchaseProps>) {
   if (!p.data) return null
-  const imageUrl = p.data.imageUrl || ''
+  let imageUrl = p.data.imageUrl || ''
+  if (imageUrl && imageUrl.includes('localhost:4000') && !API_URL.includes('localhost:4000')) {
+    imageUrl = imageUrl.replace(/https?:\/\/localhost:4000/, API_URL)
+  }
+  if (imageUrl && !imageUrl.startsWith('http')) {
+    imageUrl = `${API_URL}${imageUrl.startsWith('/')?'':'/'}${imageUrl}`
+  }
   const allFree = (p.data.ticketTypes || []).every(tt => Number(tt.price || 0) === 0)
   const isFree = allFree
   return (
@@ -194,7 +200,13 @@ function Step1View(p: Readonly<PurchaseProps>) {
 
 function Step2View(p: Readonly<PurchaseProps>) {
   if (!p.data) return null
-  const imageUrl = p.data.imageUrl || ''
+  let imageUrl = p.data.imageUrl || ''
+  if (imageUrl && imageUrl.includes('localhost:4000') && !API_URL.includes('localhost:4000')) {
+    imageUrl = imageUrl.replace(/https?:\/\/localhost:4000/, API_URL)
+  }
+  if (imageUrl && !imageUrl.startsWith('http')) {
+    imageUrl = `${API_URL}${imageUrl.startsWith('/')?'':'/'}${imageUrl}`
+  }
   return (
     <div style={{ display:'flex', flexWrap:'wrap', gap:20, color: 'var(--text)', position:'relative', overflow:'hidden', maxWidth:'100%' }}>
       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-start', marginRight:0, minWidth:0 }}>
