@@ -9,119 +9,56 @@ import { getEventsByStatus } from '../services/events'
  
 import pageStyles from './seven-events.module.css'
 import { useToast } from '../hooks/useToast'
-import { API_URL, api } from '../services/api'
-import type { EventSummary, EventDetail } from '../types'
+import { api } from '../services/api'
+import type { EventSummary } from '../types'
 import AuthModal from '../components/modals/AuthModal'
 import MyTicketsView from '../components/MyTicketsView'
 import DevicesView from '../components/DevicesView'
 import MyEventsView from '../components/MyEventsView'
 import EditEventModal from '../components/modals/EditEventModal'
-import EventPurchaseModal from '../components/modals/EventPurchaseModal'
 import Footer from '../components/Footer'
 
 export default function SevenEventsPage() {
   const { user, logout, setUser } = useAuth()
   const { events, activeIndex, setActiveIndex, setEvents } = useEventsCarousel()
   const { show } = useToast()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [finalizedEvents, setFinalizedEvents] = useState<EventSummary[]>([])
 
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const [view, setView] = useState<'home' | 'tickets' | 'devices' | 'my-events'>('home')
   const [editEvent, setEditEvent] = useState<{ id: string; title: string; location: string; startDate: string; description: string; imageUrl?: string | null } | null>(null)
-  const [eventLoading, setEventLoading] = useState(false)
-  const [eventError, setEventError] = useState('')
-  const [eventData, setEventData] = useState<EventDetail | null>(null)
-  const [selectedTT, setSelectedTT] = useState('')
-  const [qty, setQty] = useState(1)
-
-  // card abre compra diretamente; detalhes continuam disponíveis por outras ações
-
-  async function handleMakeOrder() {
-    const active = events[activeIndex]
-    if (!active) return
-    setShowPurchaseModal(true)
-    setEventLoading(true)
-    setEventError('')
-    setEventData(null)
-    setSelectedTT('')
-    setQty(1)
-    try {
-      const r = await fetch(`${API_URL}/events/${active.id}`)
-      if (!r.ok) throw new Error('not_found')
-      const j = await r.json()
-      setEventData(j)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
-      setEventError(msg)
-    } finally { setEventLoading(false) }
-  }
-
-
-  async function openPurchaseBySlug(slug: string) {
-    setShowPurchaseModal(true)
-    setEventLoading(true)
-    setEventError('')
-    setEventData(null)
-    setSelectedTT('')
-    setQty(1)
-    try {
-      const r = await fetch(`${API_URL}/events/slug/${slug}`)
-      if (!r.ok) throw new Error('not_found')
-      const j = await r.json()
-      setEventData(j)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
-      setEventError(msg)
-    } finally { setEventLoading(false) }
-  }
-
-  async function openPurchaseById(id: string) {
-    setShowPurchaseModal(true)
-    setEventLoading(true)
-    setEventError('')
-    setEventData(null)
-    setSelectedTT('')
-    setQty(1)
-    try {
-      const r = await fetch(`${API_URL}/events/${id}`)
-      if (!r.ok) throw new Error('not_found')
-      const j = await r.json()
-      setEventData(j)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Falha ao carregar'
-      setEventError(msg)
-    } finally { setEventLoading(false) }
-  }
-
-  // removido modal de detalhes; abrimos direto a compra
 
   useEffect(() => {
     const buyId = searchParams.get('buyId') || ''
     const buy = searchParams.get('buy') || ''
-    if (user) {
-      if (buyId) {
-        openPurchaseById(buyId)
-        searchParams.delete('buyId')
-        setSearchParams(searchParams)
-        return
-      }
-      if (buy) {
-        openPurchaseBySlug(buy)
-        searchParams.delete('buy')
-        setSearchParams(searchParams)
-      }
-    } else if (buyId || buy) {
-      setShowAuthModal(true)
+    if (buyId) {
+      navigate(`/checkout/${buyId}`)
+      return
     }
-  }, [searchParams, user, setSearchParams])
+    if (buy) {
+      navigate(`/checkout/${buy}`)
+    }
+  }, [searchParams, navigate])
 
   useEffect(() => {
     const h: EventListener = () => { setView('tickets') }
     ;(globalThis as EventTarget).addEventListener('openMyTickets', h)
     return () => { (globalThis as EventTarget).removeEventListener('openMyTickets', h) }
+  }, [])
+  
+  useEffect(() => {
+    const h: EventListener = () => { setView('my-events') }
+    ;(globalThis as EventTarget).addEventListener('openMyEvents', h)
+    return () => { (globalThis as EventTarget).removeEventListener('openMyEvents', h) }
+  }, [])
+  
+  useEffect(() => {
+    const h: EventListener = () => { setView('devices') }
+    ;(globalThis as EventTarget).addEventListener('openDevices', h)
+    return () => { (globalThis as EventTarget).removeEventListener('openDevices', h) }
   }, [])
 
   useEffect(() => {
@@ -146,6 +83,29 @@ export default function SevenEventsPage() {
     return () => { cancelled = true }
   }, [user])
 
+  function handleOpenEvent(ev: EventSummary) {
+    setActiveIndex(events.findIndex(e => e.id === ev.id))
+    if (!user) {
+      setPendingAction(() => () => navigate(`/checkout/${ev.id}`))
+      setShowAuthModal(true)
+      return
+    }
+    navigate(`/checkout/${ev.id}`)
+  }
+
+  function handleEditEvent(ev: EventSummary) {
+    setEditEvent({ id: ev.id, title: '', location: '', startDate: '', description: '', imageUrl: ev.imageUrl || null })
+  }
+
+  async function handleEventsPublished() {
+    show({ text: 'Atualizando eventos...', kind: 'ok' })
+    try {
+      const j = await api.publishedEvents()
+      if (Array.isArray(j)) setEvents(j as EventSummary[])
+    } catch { setEvents(e => e) }
+    show({ text: 'Eventos atualizados', kind: 'ok' })
+  }
+
   function renderContent() {
     if (view === 'home') {
       return (
@@ -154,29 +114,12 @@ export default function SevenEventsPage() {
             events={events}
             activeIndex={activeIndex}
             onSelect={(i) => setActiveIndex(() => i)}
-            onOpenEvent={(ev) => {
-              setActiveIndex(events.findIndex(e => e.id===ev.id))
-              if (user) {
-                void openPurchaseById(ev.id)
-              } else {
-                setShowAuthModal(true)
-                const next = new URLSearchParams(searchParams)
-                next.set('buyId', ev.id)
-                setSearchParams(next)
-              }
-            }}
+            onOpenEvent={handleOpenEvent}
           />
           <FinalizedEventsRow
             events={finalizedEvents}
             onOpenEvent={(ev) => {
-               if (user) {
-                 void openPurchaseById(ev.id)
-               } else {
-                  setShowAuthModal(true)
-                  const next = new URLSearchParams(searchParams)
-                  next.set('buyId', ev.id)
-                  setSearchParams(next)
-               }
+               navigate(`/checkout/${ev.id}`)
             }}
           />
         </>
@@ -187,15 +130,8 @@ export default function SevenEventsPage() {
     
     return (
       <MyEventsView
-        onEdit={(ev) => { setEditEvent({ id: ev.id, title: '', location: '', startDate: '', description: '', imageUrl: ev.imageUrl || null }); }}
-        onPublished={async () => {
-          show({ text: 'Atualizando eventos...', kind: 'ok' })
-          try {
-            const j = await api.publishedEvents()
-            if (Array.isArray(j)) setEvents(j as EventSummary[])
-          } catch { setEvents(e => e) }
-          show({ text: 'Eventos atualizados', kind: 'ok' })
-        }}
+        onEdit={handleEditEvent}
+        onPublished={handleEventsPublished}
       />
     )
   }
@@ -210,15 +146,20 @@ export default function SevenEventsPage() {
         onOpenDevices={() => { if (user) { setView('devices') } else { setShowAuthModal(true) } }}
         onLoginOpen={() => { setShowAuthModal(true) }}
         onLogout={async () => { await logout(); setUser(null); setView('home') }}
-        onMakeOrder={() => { if (user) { handleMakeOrder() } else { setShowAuthModal(true) } }}
         onGoHome={() => setView('home')}
       />
       <main style={{ flex: 1, paddingBottom: '80px' }}>
         {renderContent()}
       </main>
 
-      {/* removido EventDetailModal */}
-      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onLoggedIn={(u) => { setUser(u); setShowAuthModal(false) }} />
+      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onLoggedIn={(u) => { 
+        setUser(u); 
+        setShowAuthModal(false); 
+        if (pendingAction) {
+          pendingAction();
+          setPendingAction(null);
+        }
+      }} />
       <EditEventModal
         key={editEvent?.id || 'none'}
         open={!!editEvent}
@@ -231,18 +172,6 @@ export default function SevenEventsPage() {
         }}
       />
 
-      <EventPurchaseModal
-        key={eventData?.id || 'none'}
-        open={showPurchaseModal}
-        loading={eventLoading}
-        error={eventError}
-        data={eventData}
-        selectedTT={selectedTT}
-        qty={qty}
-        onClose={() => setShowPurchaseModal(false)}
-        onSelectTT={(id)=> setSelectedTT(id)}
-        onChangeQty={(n)=> setQty(n)}
-      />
       <Footer />
     </div>
   )

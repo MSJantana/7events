@@ -31,6 +31,7 @@ router.post('/', requireAuth, (req, res) => eventController.create(req as any, r
 router.patch('/:id', requireAuth, (req, res) => eventController.update(req as any, res))
 router.post('/:id/publish', requireAuth, (req, res) => eventController.publish(req as any, res))
 router.post('/:id/cancel', requireAuth, (req, res) => eventController.cancel(req as any, res))
+router.post('/:id/reviews', requireAuth, (req, res) => eventController.addReview(req as any, res))
 router.post('/:id/image', requireAuth, (req, res) => {
   upload.single('image')(req as any, res as any, (err: any) => {
     if (err) {

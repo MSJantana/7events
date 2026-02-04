@@ -19,6 +19,7 @@ model User {
   tickets   Ticket[]
   loginSessions LoginSession[]
   google    UserGoogle?
+  reviews   Review[]
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
 }
@@ -38,6 +39,9 @@ model Event {
   capacity    Int
   status      Status       @default(DRAFT)
   imageUrl    String?
+  averageRating Float    @default(0)
+  reviewCount   Int      @default(0)
+  reviews       Review[]
   ticketTypes TicketType[]
   tickets     Ticket[]
   orders      Order[]
@@ -196,3 +200,18 @@ model UserGoogle {
 }
 
 // UserLocal removed; local credentials stored on User
+
+model Review {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}

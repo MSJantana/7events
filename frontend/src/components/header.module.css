@@ -218,21 +218,8 @@
   font-size: 14px;
 }
 
-.ctaBtn {
-  border: none;
-  background: #4f46e5;
-  color: #ffffff;
-  padding: 8px 10px;
-  border-radius: 12px;
-  cursor: pointer;
-  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.35);
-  font-weight: 700;
-  font-size: 14px;
-}
-
 @media (max-width: 1024px) {
   .container { padding: 0 12px; }
   .nav { gap: 10px; }
   .datePill { display: none; }
-  .ctaBtn { padding: 6px 10px; font-size: 13px; }
 }

@@ -1,165 +1,173 @@
-import FinalizadoBadge from '../components/FinalizadoBadge'
-import modalStyles from './modals/modal.module.css'
-import { fmtEventDuration } from '../utils/format'
-import styles from './carousel.module.css'
-
-function fmtCityUF(s?: string) {
-  const str = String(s || '').trim()
-  if (!str) return ''
-  const mDash = /^(.+?)\s*[-–]\s*([A-Za-z]{2})$/.exec(str)
-  if (mDash) return `${mDash[1].trim()} - ${mDash[2].toUpperCase()}`
-  const mSlash = /^(.+?)\s*\/\s*([A-Za-z]{2})$/.exec(str)
-  if (mSlash) return `${mSlash[1].trim()} - ${mSlash[2].toUpperCase()}`
-  const mComma = /^(.+?),\s*([A-Za-z]{2})$/.exec(str)
-  if (mComma) return `${mComma[1].trim()} - ${mComma[2].toUpperCase()}`
-  const tokens = str.split(/\s+/)
-  const last = tokens.at(-1)
-  if (last && /^[A-Za-z]{2}$/.test(last)) return `${tokens.slice(0, -1).join(' ')} - ${last.toUpperCase()}`
-  return str
-}
-
-function bgForIndex(i: number) {
-  const colors = ['#ef4444', '#0ea5e9', '#22c55e', '#f59e0b']
-  return colors[i] ?? '#8b5cf6'
-}
-
 import { API_URL } from '../services/api'
+import type { EventSummary } from '../types'
+import styles from './carousel.module.css'
+import modalStyles from './modals/modal.module.css'
 
 function thumbUrl(imageUrl?: string | null) {
   if (!imageUrl) return undefined
   
-  // Fix: replace localhost with API_URL if present (handling legacy absolute URLs)
   let url = imageUrl
   if (url.includes('localhost:4000') && !API_URL.includes('localhost:4000')) {
     url = url.replace(/https?:\/\/localhost:4000/, API_URL)
   }
 
-  // Se já for URL absoluta (http/https), usa como está
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url.endsWith('.webp') ? url.replace(/\.webp$/, '-thumb.webp') : url
   }
-  // Se for caminho relativo, adiciona API_URL
   const fullUrl = `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`
   return fullUrl.endsWith('.webp') ? fullUrl.replace(/\.webp$/, '-thumb.webp') : fullUrl
 }
 
-function computeTransform(offset: number) {
-  const tx = offset * 220
-  let ry: number
-  if (offset === 0) {
-    ry = 0
-  } else if (offset < 0) {
-    ry = 25
-  } else {
-    ry = -25
-  }
-  const tz = offset === 0 ? 60 : 0
-  const scale = offset === 0 ? 1 : 0.9
-  const z = offset === 0 ? 3 : 2 - Math.abs(offset)
-  return { tx, ry, tz, scale, z }
-}
-
-function computeCardStyle(ev: Ev, offset: number, bg: string) {
-  const { tx, ry, tz, scale, z } = computeTransform(offset)
-  const tUrl = thumbUrl(ev.imageUrl)
-  return {
-    background: ev.imageUrl ? 'transparent' : bg,
-    backgroundImage: ev.imageUrl ? `url(${tUrl})` : undefined,
-    backgroundSize: ev.imageUrl ? 'cover' : undefined,
-    backgroundPosition: ev.imageUrl ? 'center' : undefined,
-    boxShadow: offset === 0 ? '0 20px 40px rgba(0,0,0,0.25)' : '0 8px 20px rgba(0,0,0,0.14)',
-    transform: `translateX(-50%) translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg) scale(${scale})`,
-    zIndex: z,
-  } as const
-}
-
-function dotClass(i: number, activeIndex: number, stylesObj: typeof styles) {
-  return i === activeIndex ? `${stylesObj.dot} ${stylesObj.dotActive}` : stylesObj.dot
-}
-
-type Ev = {
-  id: string
-  title: string
-  location: string
-  startDate: string
-  endDate: string
-  status: 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'
-  imageUrl?: string | null
-}
-
 type Props = {
-  events: Ev[]
+  events: EventSummary[]
   activeIndex: number
   onSelect: (i: number) => void
-  onOpenEvent: (ev: Ev) => void | Promise<void>
+  onOpenEvent: (ev: EventSummary) => void | Promise<void>
+}
+
+function renderStars(rating: number = 0) {
+  const stars = []
+  const fullStars = Math.floor(rating)
+  const hasHalfStar = rating % 1 >= 0.5
+  
+  for (let i = 0; i < 5; i++) {
+    if (i < fullStars) {
+      stars.push(<span key={i} className="mi" style={{ fontSize: 14 }}>star</span>)
+    } else if (i === fullStars && hasHalfStar) {
+      stars.push(<span key={i} className="mi" style={{ fontSize: 14 }}>star_half</span>)
+    } else {
+      stars.push(<span key={i} className="mi" style={{ fontSize: 14, color: '#ccc' }}>star_outline</span>) // or just empty star
+    }
+  }
+  return stars
 }
 
 export default function EventsCarousel({ events, activeIndex, onSelect, onOpenEvent }: Readonly<Props>) {
-
   const hasEvents = events.length > 0
+  
+  const handlePrev = () => {
+    const next = activeIndex - 1
+    onSelect(next < 0 ? events.length - 1 : next)
+  }
+
+  const handleNext = () => {
+    const next = activeIndex + 1
+    onSelect(next >= events.length ? 0 : next)
+  }
+
+  // Formatting helpers
+  const fmtPrice = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // Calculate transform for the track
+  // Card width 310px + 24px gap = 334px
+  const CARD_WIDTH_WITH_GAP = 334
+  const translateX = -(activeIndex * CARD_WIDTH_WITH_GAP)
 
   return (
     <section className={styles.section}>
       <div className={styles.container}>
-        {/* PALCO 3D */}
-        <div className={styles.stage}>
-          {hasEvents ? (
-            events.map((ev, i) => {
-              const offset = i - activeIndex
-              const style = computeCardStyle(ev, offset, bgForIndex(i))
-              return (
-                <button
-                  key={ev.id}
-                  type="button"
-                  aria-label={`Abrir ${ev.title}`}
-                  onMouseEnter={() => onSelect(i)}
-                  onFocus={() => onSelect(i)}
-                  onClick={() => onOpenEvent(ev)}
-                  className={styles.card}
-                  style={style}
-                />
-              )
-            })
-          ) : (
-            <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <div className={`${modalStyles.notice} ${modalStyles.noticeInfo}`} style={{ fontSize: '24px', padding: '24px 48px' }}>Nenhum evento publicado</div>
+        
+        {hasEvents ? (
+          <div className={styles.carouselWrapper}>
+            <button className={styles.navButton} onClick={handlePrev} aria-label="Anterior">
+              <span className="mi">chevron_left</span>
+            </button>
+            
+            <div className={styles.trackWindow}>
+              <div 
+                className={styles.track} 
+                style={{ transform: `translateX(${translateX}px)` }}
+              >
+                {events.map((ev) => (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    className={styles.card}
+                    onClick={() => onOpenEvent(ev)}
+                    aria-label={`Ver oferta ${ev.title}`}
+                  >
+                    <div className={styles.imageContainer}>
+                      {ev.imageUrl ? (
+                        <img src={thumbUrl(ev.imageUrl)} alt={ev.title} className={styles.image} />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', background: '#e0e0e0' }} />
+                      )}
+                      <div className={styles.badge}>
+                        OFERTA<br/>EXCLUSIVA<br/>7EVENTS
+                      </div>
+                    </div>
+                    
+                    <div className={styles.infoContainer}>
+                      <div className={styles.metaRow}>
+                        <div className={styles.location}>
+                          <span className="mi" style={{ fontSize: 14 }}>location_on</span>
+                          {ev.location}
+                        </div>
+                        <div className={styles.rating}>
+                          <span>{(ev.averageRating || 0).toFixed(1)}</span>
+                          {renderStars(ev.averageRating || 0)}
+                          <span className={styles.ratingCount}>({ev.reviewCount || 0})</span>
+                        </div>
+                      </div>
+                      
+                      <div className={styles.cardTitle} title={ev.title}>
+                        {ev.title}
+                      </div>
+                      
+                      <div className={styles.priceRow}>
+                        <div className={styles.priceInfo}>
+                          {(ev.minPrice || 0) > 0 ? (
+                            <>
+                              <span className={styles.fromLabel}>A PARTIR DE</span>
+                              <span className={styles.currentPrice}>R$ {fmtPrice(ev.minPrice!)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className={styles.fromLabel}>ENTRADA</span>
+                              <span className={styles.currentPrice} style={{ color: '#5c8f3f' }}>GRÁTIS</span>
+                            </>
+                          )}
+                        </div>
+                        <div className={styles.buyButton}>
+                          {(ev.minPrice || 0) > 0 ? 'COMPRAR' : 'RESGATAR'}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+
+            <button className={styles.navButton} onClick={handleNext} aria-label="Próximo">
+              <span className="mi">chevron_right</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding: '48px', textAlign: 'center' }}>
+             <div className={`${modalStyles.notice} ${modalStyles.noticeInfo}`}>Nenhum evento disponível</div>
+          </div>
+        )}
 
         {hasEvents && (
-          <>
-            {/* Dots */}
-            <div className={styles.dots} aria-hidden>
-              {events.map((ev, i) => (
-                <span key={ev.id} className={dotClass(i, activeIndex, styles)} />
-              ))}
-            </div>
-
-            {/* Título + badge */}
-            <div className={styles.titleRow}>
-              <div className={styles.title}>
-                {events[activeIndex]?.title || ''}
-              </div>
-              <FinalizadoBadge
-                endDate={events[activeIndex]?.endDate}
-                status={events[activeIndex]?.status}
+          <div className={styles.dots}>
+            {events.map((ev, i) => (
+              <button 
+                key={ev.id} 
+                className={i === activeIndex ? `${styles.dot} ${styles.dotActive}` : styles.dot}
+                onClick={() => onSelect(i)}
+                aria-label={`Ir para slide ${i + 1}`}
+                style={{ border: 'none', padding: 0 }}
               />
-            </div>
-
-            {/* Local + data */}
-            <div className={styles.info}>
-              <div className={styles.sub}>
-                <span className="mi" aria-hidden>location_on</span>
-                <span>{fmtCityUF(events[activeIndex]?.location || '')}</span>
-              </div>
-              <div className={styles.sub}>
-                <span className="mi" aria-hidden>calendar_month</span>
-                <span>{fmtEventDuration(events[activeIndex]?.startDate, events[activeIndex]?.endDate)}</span>
-              </div>
-            </div>
-          </>
+            ))}
+          </div>
         )}
+        
+        <div className={styles.footerRow}>
+           <button className={styles.viewAllButton} onClick={() => window.scrollTo(0, 0)}>
+             VER TODAS
+           </button>
+        </div>
+
       </div>
     </section>
   )

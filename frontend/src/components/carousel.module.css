@@ -1,123 +1,255 @@
 .section {
   position: relative;
-  padding: 24px 0;
+  padding: 40px 0;
   overflow: hidden;
+  background-color: #fff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .container {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 16px;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
-/* palco do carrossel */
-.stage {
-  margin-top: 28px;
-  width: 100%;
+.carouselWrapper {
   position: relative;
-  height: 240px;
-  perspective: 1000px;
-}
-
-/* card; transform/zIndex vêm inline */
-.card {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 300px;
-  height: 200px;
-  border-radius: 16px;
-  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 18px;
+  margin-bottom: 24px;
+}
+
+.navButton {
+  background: transparent;
   border: none;
   cursor: pointer;
+  color: #ccc;
+  font-size: 48px;
+  padding: 0 16px;
+  transition: color 0.2s;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.navButton:hover {
+  color: #999;
+}
+
+.navButton:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.trackWindow {
   overflow: hidden;
-  transform-style: preserve-3d;
-  backface-visibility: hidden;
-  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 500ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+  width: 100%;
+  max-width: 1000px; /* Adjust based on card width * 3 + gaps */
 }
 
-/* dots */
-.dots {
-  margin-top: 18px;
+.track {
+  display: flex;
+  transition: transform 0.4s ease-in-out;
+  gap: 24px;
+}
+
+.card {
+  flex: 0 0 310px; /* Fixed width for desktop */
+  background: #fff;
+  border-radius: 8px; /* Slightly rounded */
+  overflow: hidden;
+  text-align: left;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+}
+
+.imageContainer {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  background: #eee;
+  overflow: hidden;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 12px;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #d1d5db;
-  transition: all 300ms ease;
-}
-
-.dotActive {
-  width: 22px;
-  background: #3b82f6; /* pode trocar por sua palette.cta */
-}
-
-/* linha do título */
-.titleRow {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.title {
-  font-size: 26px;
-  font-weight: 800;
-  color: #111827;
-  letter-spacing: 0.2px;
   text-align: center;
+  line-height: 1.1;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.infoContainer {
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #f59e0b; /* Star color */
+}
+
+.ratingCount {
+  color: #999;
+  margin-left: 2px;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 12px;
+  line-height: 1.4;
+  height: 40px; /* Limit lines */
+  overflow: hidden;
   text-transform: uppercase;
 }
 
-/* linha com localização e data */
-.info {
-  margin-top: 8px;
+.priceRow {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.priceInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.fromLabel {
+  font-size: 10px;
+  color: #999;
+  text-transform: uppercase;
+}
+
+.currentPrice {
+  font-size: 20px;
+  font-weight: 800;
+  color: #5c8f3f;
+}
+
+.buyButton {
+  background-color: #4b7532; /* Further darkened for contrast (4.5:1+) */
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-radius: 2px;
+}
+
+.buyButton:hover {
+  background-color: #3a5c27;
+}
+
+.dots {
+  display: flex;
   justify-content: center;
-  gap: 18px;
-  color: #111827;
-  flex-wrap: wrap;
-}
-
-.sub {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  color: #6b7280;
-  font-size: 14px;
+  margin-top: 8px;
 }
 
-/* responsivo básico */
-@media (max-width: 640px) {
-  .container {
-    padding: 0 16px;
-  }
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #ccc;
+  cursor: pointer;
+  transition: background 0.2s;
+}
 
+.dotActive {
+  background-color: #7dae4a;
+}
+
+.footerRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  width: 100%;
+  max-width: 1000px;
+  align-self: center;
+}
+
+.viewAllButton {
+  background: transparent;
+  border: 1px solid #ccc;
+  color: #666;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewAllButton:hover {
+  border-color: #999;
+  color: #333;
+}
+
+@media (max-width: 768px) {
+  .headerTitle {
+    font-size: 20px;
+  }
   .card {
-    width: 260px;
-    height: 180px;
-  }
-
-  .title {
-    font-size: 22px;
+    flex: 0 0 260px;
   }
 }

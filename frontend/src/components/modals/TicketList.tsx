@@ -125,7 +125,7 @@ export default function TicketList({ tickets }: { readonly tickets: readonly Tic
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{
                       width: 40, height: 40, borderRadius: '50%', background: '#e5e7eb',
-                      backgroundImage: t.eventImage ? `url(${t.eventImage})` : 'none',
+                      backgroundImage: t.eventImage ? `url('${t.eventImage}')` : 'none',
                       backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0
                     }} />
                     <div style={{ display: 'flex', flexDirection: 'column' }}>

@@ -10,7 +10,6 @@ type Props = Readonly<{
   onOpenDevices: () => void
   onLoginOpen: () => void
   onLogout: () => Promise<void> | void
-  onMakeOrder: () => void
   onGoHome?: () => void
 }>
 
@@ -25,7 +24,6 @@ export default function Header({
   onOpenDevices,
   onLoginOpen,
   onLogout,
-  onMakeOrder,
   onGoHome,
 }: Props) {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -163,19 +161,6 @@ export default function Header({
             <span className="mi">calendar_month</span>
             <span>{dateText}</span>
           </div>
-
-          <button
-            onClick={() => {
-              if (user) {
-                onMakeOrder()
-              } else {
-                onLoginOpen()
-              }
-            }}
-            className={styles.ctaBtn}
-          >
-            Comprar Ingresso
-          </button>
 
           <div className={styles.profileWrap} ref={profileRef}>
             <button

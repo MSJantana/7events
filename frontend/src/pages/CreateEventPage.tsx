@@ -489,7 +489,6 @@ export default function CreateEventPage() {
         onOpenDevices={() => navigate('/?view=devices')}
         onLoginOpen={() => { /* Handle login if needed, or redirect */ }}
         onLogout={() => { /* Handle logout */ }}
-        onMakeOrder={() => {}}
         onGoHome={() => navigate('/')}
       />
       

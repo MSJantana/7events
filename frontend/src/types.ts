@@ -2,7 +2,11 @@ export type UserRole = 'ADMIN' | 'ORGANIZER'
 export type User = { id: string; name: string; email?: string; role: UserRole; eventsCount?: number }
 
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELED' | 'FINALIZED'
-export type EventSummary = { id: string; title: string; description?: string; location: string; startDate: string; endDate: string; status: EventStatus; imageUrl?: string | null }
+export type EventSummary = { id: string; title: string; description?: string; location: string; startDate: string; endDate: string; status: EventStatus; imageUrl?: string | null;
+  minPrice?: number;
+  averageRating?: number;
+  reviewCount?: number;
+}
 export type EventDetail = EventSummary & { capacity: number; minPrice: number; ticketTypes: { id: string; name: string; price: number; quantity: number }[] }
 
 export type TicketType = { id: string; name: string; price: number; quantity: number }

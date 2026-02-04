@@ -62,7 +62,22 @@ export const eventController = {
     }
 
     const events = await eventService.listEvents(status as any)
-    res.json(events)
+    
+    const eventsWithPrice = events.map(e => {
+      const ticketTypes = (e as any).ticketTypes || []
+      const minPrice = ticketTypes.length > 0 
+        ? Math.min(...ticketTypes.map((t: any) => Number(t.price))) 
+        : 0
+      return {
+        ...e,
+        minPrice,
+        // Remove ticketTypes from list response to keep it light if needed, 
+        // or keep it if frontend wants to show "options"
+        ticketTypes: undefined 
+      }
+    })
+
+    res.json(eventsWithPrice)
   },
 
   async get(req: Request, res: Response) {
@@ -82,6 +97,8 @@ export const eventController = {
       imageUrl: found.imageUrl,
       capacity: found.capacity,
       minPrice,
+      averageRating: found.averageRating,
+      reviewCount: found.reviewCount,
       ticketTypes
     })
   },
@@ -210,6 +227,28 @@ export const eventController = {
 
     const updated = await eventService.cancelEvent(id)
     res.json(updated)
+  },
+
+  async addReview(req: AuthedRequest, res: Response) {
+    const { id } = req.params
+    const { rating, comment } = req.body
+    const userId = req.user.sub
+
+    const rate = Number(rating)
+    if (!Number.isInteger(rate) || rate < 1 || rate > 5) {
+      return res.status(400).json({ error: 'invalid_rating', message: 'Rating must be integer 1-5' })
+    }
+
+    const event = await eventService.getEventById(id)
+    if (!event) return res.status(404).json({ error: 'not_found' })
+
+    try {
+      const updated = await eventService.addReview(id, userId, rate, comment)
+      res.json(updated)
+    } catch (e: any) {
+      console.error('Review error:', e)
+      res.status(500).json({ error: 'review_failed' })
+    }
   },
 
   async uploadImage(req: UploadRequest, res: Response) {

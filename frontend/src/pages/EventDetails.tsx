@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { fmtMoneyBRL, fmtDate } from '../utils/format'
 import type { EventDetail } from '../types'
 import { useAuth } from '../hooks/useAuth'
+import AuthModal from '../components/modals/AuthModal'
 import modalStyles from '../components/modals/modal.module.css'
 
 function toTitleFromSlug(slug: string) {
@@ -74,6 +75,7 @@ export default function EventDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState<EventDetail | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -93,7 +95,7 @@ export default function EventDetails() {
   function onBuyClick(){
     const id = data?.id || ''
     if (!user) {
-      navigate(id ? `/?buyId=${encodeURIComponent(id)}` : `/?buy=${encodeURIComponent(slug)}`)
+      setShowAuthModal(true)
       return
     }
     navigate(id ? `/?buyId=${encodeURIComponent(id)}` : `/?buy=${encodeURIComponent(slug)}`)
@@ -129,6 +131,19 @@ export default function EventDetails() {
         </div>
         {content}
       </div>
+      {showAuthModal && (
+        <AuthModal
+          open={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onLoggedIn={() => {
+            setShowAuthModal(false)
+            const id = data?.id || ''
+            navigate(id ? `/?buyId=${encodeURIComponent(id)}` : `/?buy=${encodeURIComponent(slug)}`)
+          }}
+          buySlug={slug}
+          buyId={data?.id}
+        />
+      )}
     </div>
   )
 }

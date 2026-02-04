@@ -5,6 +5,13 @@ import { fmtMoneyBRL } from '../../utils/format'
 
 type PaymentMethod = 'FREE' | 'CREDIT_CARD' | 'PAYPAL' | 'PIX' | 'BOLETO'
 
+type CardState = { name: string; number: string; expiry: string; cvv: string }
+type PayPalState = { email: string }
+type PixState = { key: string }
+type BoletoState = { name: string }
+
+type FlowStatus = { text: string; kind: 'ok' | 'err' | '' }
+
 function paymentLabel(m: PaymentMethod) {
   if (m === 'FREE') return 'Grátis'
   if (m === 'CREDIT_CARD') return 'Cartão de crédito'
@@ -21,11 +28,62 @@ function methodIcon(m: PaymentMethod) {
   return 'receipt_long'
 }
 
+function onlyDigits(s: string) { return String(s).replaceAll(/\D+/g, '') }
+
+function luhnCheck(s: string) {
+  const d = onlyDigits(s)
+  if (d.length < 13 || d.length > 19) return false
+  let sum = 0
+  let dbl = false
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = Number(d[i])
+    if (dbl) { n *= 2; if (n > 9) n -= 9 }
+    sum += n
+    dbl = !dbl
+  }
+  return sum % 10 === 0
+}
+
+function fmtCardNumber(s: string) {
+  const d = onlyDigits(s).slice(0, 16)
+  const parts = []
+  for (let i = 0; i < d.length; i += 4) parts.push(d.slice(i, i + 4))
+  return parts.join(' ')
+}
+
+function fmtExpiry(s: string) {
+  const d = onlyDigits(s).slice(0, 4)
+  if (d.length <= 2) return d
+  const mm = d.slice(0, 2)
+  const yy = d.slice(2)
+  return `${mm}/${yy}`
+}
+
+function validMonth(mm: string) {
+  const n = Number(mm)
+  return mm.length === 2 && n >= 1 && n <= 12
+}
+
+function validateExpiry(s: string) {
+  const v = fmtExpiry(s)
+  const [mm, yy] = v.split('/')
+  if (!validMonth(mm || '')) return false
+  if (yy?.length !== 2) return false
+  const m = Number(mm)
+  const y = 2000 + Number(yy)
+  const now = new Date()
+  const cy = now.getFullYear()
+  const cm = now.getMonth() + 1
+  if (y < cy) return false
+  if (y === cy && m < cm) return false
+  return true
+}
+
 export default function PaymentSection(p: Readonly<{
   paymentMethod: PaymentMethod | ''
   setPaymentMethod: (m: PaymentMethod) => void
-  flowStatus: { text: string; kind: 'ok' | 'err' | '' }
-  setFlowStatus: (s: { text: string; kind: 'ok' | 'err' | '' }) => void
+  flowStatus: FlowStatus
+  setFlowStatus: (s: FlowStatus) => void
   orderId: string
   onBack: () => void
   onPay: (pm: PaymentMethod) => Promise<void>
@@ -46,57 +104,6 @@ export default function PaymentSection(p: Readonly<{
   const method = p.paymentMethod as PaymentMethod
   const { onValidityChange } = p
 
-  function onlyDigits(s: string) { return String(s).replace(/\D+/g, '') }
-
-  function luhnCheck(s: string) {
-    const d = onlyDigits(s)
-    if (d.length < 13 || d.length > 19) return false
-    let sum = 0
-    let dbl = false
-    for (let i = d.length - 1; i >= 0; i--) {
-      let n = Number(d[i])
-      if (dbl) { n *= 2; if (n > 9) n -= 9 }
-      sum += n
-      dbl = !dbl
-    }
-    return sum % 10 === 0
-  }
-
-  function fmtCardNumber(s: string) {
-    const d = onlyDigits(s).slice(0, 16)
-    const parts = []
-    for (let i = 0; i < d.length; i += 4) parts.push(d.slice(i, i + 4))
-    return parts.join(' ')
-  }
-
-  function fmtExpiry(s: string) {
-    const d = onlyDigits(s).slice(0, 4)
-    if (d.length <= 2) return d
-    const mm = d.slice(0, 2)
-    const yy = d.slice(2)
-    return `${mm}/${yy}`
-  }
-
-  function validMonth(mm: string) {
-    const n = Number(mm)
-    return mm.length === 2 && n >= 1 && n <= 12
-  }
-
-  function validateExpiry(s: string) {
-    const v = fmtExpiry(s)
-    const [mm, yy] = v.split('/')
-    if (!validMonth(mm || '')) return false
-    if (!yy || yy.length !== 2) return false
-    const m = Number(mm)
-    const y = 2000 + Number(yy)
-    const now = new Date()
-    const cy = now.getFullYear()
-    const cm = now.getMonth() + 1
-    if (y < cy) return false
-    if (y === cy && m < cm) return false
-    return true
-  }
-
   const cardNumberValid = disabled || (card.number ? luhnCheck(card.number) : false)
   const cardExpiryValid = disabled || (card.expiry ? validateExpiry(card.expiry) : false)
   const cardCvvValid = disabled || (card.cvv ? /^[0-9]{3,4}$/.test(card.cvv) : false)
@@ -105,246 +112,341 @@ export default function PaymentSection(p: Readonly<{
   const pixKeyValid = disabled || (!pix.key || pix.key.trim().length >= 5)
   const boletoNameValid = disabled || (!boleto.name || boleto.name.trim().length >= 3)
 
-  const methodValid = disabled || (
-    method === 'CREDIT_CARD' ? (cardNameValid && cardNumberValid && cardExpiryValid && cardCvvValid)
-      : method === 'PAYPAL' ? paypalEmailValid
-      : method === 'PIX' ? pixKeyValid
-      : method === 'BOLETO' ? boletoNameValid
-      : false
-  )
+  const methodValid = disabled || (() => {
+    if (method === 'CREDIT_CARD') return cardNameValid && cardNumberValid && cardExpiryValid && cardCvvValid
+    if (method === 'PAYPAL') return paypalEmailValid
+    if (method === 'PIX') return pixKeyValid
+    if (method === 'BOLETO') return boletoNameValid
+    return false
+  })()
 
   useEffect(() => {
     if (onValidityChange) onValidityChange(!!method && methodValid)
   }, [method, methodValid, onValidityChange])
 
   return (
-    // wrapper que o grid de fora enxerga como UM item
     <div className={styles.paymentRow}>
-      {/* grid interno só da área de pagamento */}
-      <div
-        className={styles.content}
-        style={{ position: 'relative', gridTemplateColumns: '350px 1fr', alignItems: 'start' }}
-      >
-        {/* Checkout do pedido (coluna esquerda) */}
-        <div
-          className={`${styles.card} ${styles.checkoutCard}`}
-          style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}
-        >
+      <div className={styles.content} style={{ position: 'relative', gridTemplateColumns: '350px 1fr' }}>
+        
+        {/* Left Column: Checkout Summary */}
+        <div className={`${styles.card} ${styles.checkoutCard}`} style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
           <div className={styles.sectionTitle}>
             <span className="mi" aria-hidden>shopping_cart</span>
             <span>Checkout do pedido</span>
           </div>
 
-          <div className={styles.checkoutMethods}>
-            {(['FREE', 'CREDIT_CARD', 'PAYPAL', 'PIX', 'BOLETO'] as const).map(m => (
-              <button
-                key={m}
-                type="button"
-                className={`${styles.checkoutMethod} ${p.paymentMethod === m ? styles.checkoutMethodActive : ''}`}
-                onClick={async () => {
-                  p.setPaymentMethod(m)
-                  const lbl = paymentLabel(m)
-                  p.setFlowStatus({ text: `${lbl} selecionado — desbloqueado`, kind: 'ok' })
-                }}
-                aria-pressed={p.paymentMethod === m}
-                disabled={isFree ? m !== 'FREE' : m === 'FREE'}
-              >
-                <span className="mi" aria-hidden>{methodIcon(m)}</span>
-                <span>{paymentLabel(m)}</span>
-              </button>
-            ))}
-          </div>
+          <PaymentMethodSelector 
+            paymentMethod={p.paymentMethod} 
+            setPaymentMethod={p.setPaymentMethod} 
+            setFlowStatus={p.setFlowStatus} 
+            isFree={isFree} 
+          />
 
-          {p.flowStatus.text ? (
-            <div
-              className={`${styles.notice} ${p.flowStatus.kind === 'ok' ? styles.noticeOk : styles.noticeErr}`}
-              style={{ marginTop: 8 }}
-            >
-              <span className="mi" aria-hidden>{p.flowStatus.kind === 'ok' ? 'check_circle' : 'block'}</span>
-              <span>{p.flowStatus.text}</span>
-            </div>
-          ) : (
-            <div className={`${styles.notice} ${styles.noticeInfo}`} style={{ marginTop: 8 }}>
-              <span className="mi" aria-hidden>info</span>
-              <span>Escolha a forma de pagamento</span>
-            </div>
-          )}
+          <StatusNotice flowStatus={p.flowStatus} />
 
-          <div className={styles.checkoutInfo}>
-            <span style={{ fontWeight: 700 }}>Valor a ser pago:</span>
-            <span>{fmtMoneyBRL(total)}</span>
-            <span style={{ color: 'var(--gray)' }}>Qtd: {Math.min(p.qty, p.maxQty)}</span>
-          </div>
-
-          <div
-            style={{
-              marginTop: 8,
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              padding: '8px 12px',
-              background: '#fff',
-            }}
-          >
-            <div className={styles.summaryRow} style={{ gap: 12 }}>
-              <span style={{ flex: 1, fontWeight: 700 }}>Ingresso</span>
-              <span style={{ fontWeight: 700 }}>Valor</span>
-              <span style={{ fontWeight: 700 }}>Qtd</span>
-            </div>
-            <div className={styles.summaryRow} style={{ gap: 12 }}>
-              <span style={{ flex: 1 }}>{p.selected?.name || '—'}</span>
-              <span>{fmtMoneyBRL(Number(p.selected?.price || 0))}</span>
-              <span>{Math.min(p.qty, p.maxQty)}</span>
-            </div>
-          </div>
+          <CheckoutInfo total={total} qty={p.qty} maxQty={p.maxQty} />
+          
+          <TicketSummary selected={p.selected} qty={p.qty} maxQty={p.maxQty} />
         </div>
 
-        {/* Detalhes do pagamento (coluna direita) */}
-        <div
-          className={`${styles.card} ${styles.paymentDetails}`}
-          style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '120%' }}
-        >
+        {/* Right Column: Payment Details */}
+        <div className={`${styles.card} ${styles.paymentDetails}`} style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
           <div className={styles.sectionTitle}>
             <span className="mi" aria-hidden>{method ? methodIcon(method) : 'payment'}</span>
             <span>Detalhes do pagamento</span>
           </div>
 
-          {!method ? (
-            <div className={`${styles.notice} ${styles.noticeInfo}`}>
-              <span className="mi" aria-hidden>info</span>
-              <span>Selecione um método de pagamento</span>
-            </div>
-          ) : null}
+          <PaymentFormContent 
+            method={method}
+            disabled={disabled}
+            card={card} setCard={setCard}
+            cardValid={{ name: cardNameValid, number: cardNumberValid, expiry: cardExpiryValid, cvv: cardCvvValid }}
+            paypal={paypal} setPaypal={setPaypal}
+            paypalValid={{ email: paypalEmailValid }}
+            pix={pix} setPix={setPix}
+            pixValid={{ key: pixKeyValid }}
+            boleto={boleto} setBoleto={setBoleto}
+            boletoValid={{ name: boletoNameValid }}
+          />
 
-          {method === 'FREE' ? (
-            <div className={`${styles.notice} ${styles.noticeInfo}`}>
-              <span className="mi" aria-hidden>card_giftcard</span>
-              <span>Pedido gratuito — campos desabilitados</span>
-            </div>
-          ) : null}
-
-          {method === 'CREDIT_CARD' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div className={styles.field}>
-                <span className={styles.label}>Nome no cartão</span>
-                <input
-                  className={`${styles.input} ${card.name && !cardNameValid ? styles.invalid : ''}`}
-                  placeholder="NOME IGUAL DO CARTÃO"
-                  value={card.name}
-                  onChange={e => setCard({ ...card, name: e.target.value })}
-                  disabled={disabled}
-                />
-                {card.name && !cardNameValid ? (
-                  <span className={styles.errorText}>Nome inválido</span>
-                ) : null}
-              </div>
-
-              <div className={styles.field}>
-                <span className={styles.label}>Número do cartão</span>
-                <input
-                  className={`${styles.input} ${card.number && !cardNumberValid ? styles.invalid : ''}`}
-                  inputMode="numeric"
-                  maxLength={19}
-                  placeholder="0000 0000 0000 0000"
-                  value={card.number}
-                  onChange={e => setCard({ ...card, number: fmtCardNumber(e.target.value) })}
-                  disabled={disabled}
-                />
-                {card.number && !cardNumberValid ? (
-                  <span className={styles.errorText}>Número inválido</span>
-                ) : null}
-              </div>
-
-              <div className={styles.field}>
-                <span className={styles.label}>Validade (MM/AA)</span>
-                <input
-                  className={`${styles.input} ${card.expiry && !cardExpiryValid ? styles.invalid : ''}`}
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="MM/AA"
-                  value={fmtExpiry(card.expiry)}
-                  onChange={e => setCard({ ...card, expiry: fmtExpiry(e.target.value) })}
-                  disabled={disabled}
-                />
-                {card.expiry && !cardExpiryValid ? (
-                  <span className={styles.errorText}>Validade inválida</span>
-                ) : null}
-              </div>
-
-              <div className={styles.field}>
-                <span className={styles.label}>CVV</span>
-                <input
-                  className={`${styles.input} ${card.cvv && !cardCvvValid ? styles.invalid : ''}`}
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="123"
-                  value={card.cvv.replace(/\D+/g, '')}
-                  onChange={e =>
-                    setCard({ ...card, cvv: onlyDigits(e.target.value).slice(0, 4) })
-                  }
-                  disabled={disabled}
-                />
-                {card.cvv && !cardCvvValid ? (
-                  <span className={styles.errorText}>CVV inválido</span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {method === 'PAYPAL' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
-                <span className={styles.label}>E-mail do PayPal</span>
-                <input
-                  className={`${styles.input} ${paypal.email && !paypalEmailValid ? styles.invalid : ''}`}
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={paypal.email}
-                  onChange={e => setPaypal({ email: e.target.value })}
-                  disabled={disabled}
-                />
-                {paypal.email && !paypalEmailValid ? (
-                  <span className={styles.errorText}>E-mail inválido</span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {method === 'PIX' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
-                <span className={styles.label}>Chave PIX</span>
-                <input
-                  className={`${styles.input} ${pix.key && !pixKeyValid ? styles.invalid : ''}`}
-                  placeholder="CPF, CNPJ, e-mail ou aleatória"
-                  value={pix.key}
-                  onChange={e => setPix({ key: e.target.value })}
-                  disabled={disabled}
-                />
-                {pix.key && !pixKeyValid ? (
-                  <span className={styles.errorText}>Chave inválida</span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {method === 'BOLETO' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
-                <span className={styles.label}>Nome do boleto</span>
-                <input
-                  className={`${styles.input} ${boleto.name && !boletoNameValid ? styles.invalid : ''}`}
-                  placeholder="Nome completo"
-                  value={boleto.name}
-                  onChange={e => setBoleto({ name: e.target.value })}
-                  disabled={disabled}
-                />
-                {boleto.name && !boletoNameValid ? (
-                  <span className={styles.errorText}>Nome inválido</span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
+          <ActionButtons 
+            onBack={p.onBack} 
+            onPay={() => p.onPay(method)} 
+            flowStatus={p.flowStatus} 
+            disabled={!method || !methodValid} 
+          />
         </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Subcomponents ---
+
+function PaymentMethodSelector({ paymentMethod, setPaymentMethod, setFlowStatus, isFree }: Readonly<{
+  paymentMethod: PaymentMethod | '',
+  setPaymentMethod: (m: PaymentMethod) => void,
+  setFlowStatus: (s: FlowStatus) => void,
+  isFree: boolean
+}>) {
+  return (
+    <div className={styles.checkoutMethods}>
+      {(['FREE', 'CREDIT_CARD', 'PAYPAL', 'PIX', 'BOLETO'] as const).map(m => (
+        <button
+          key={m}
+          type="button"
+          className={`${styles.checkoutMethod} ${paymentMethod === m ? styles.checkoutMethodActive : ''}`}
+          onClick={async () => {
+            setPaymentMethod(m)
+            const lbl = paymentLabel(m)
+            setFlowStatus({ text: `${lbl} selecionado — desbloqueado`, kind: 'ok' })
+          }}
+          aria-pressed={paymentMethod === m}
+          disabled={isFree ? m !== 'FREE' : m === 'FREE'}
+        >
+          <span className="mi" aria-hidden>{methodIcon(m)}</span>
+          <span>{paymentLabel(m)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function StatusNotice({ flowStatus }: Readonly<{ flowStatus: FlowStatus }>) {
+  if (flowStatus.text) {
+    return (
+      <div
+        className={`${styles.notice} ${flowStatus.kind === 'ok' ? styles.noticeOk : styles.noticeErr}`}
+        style={{ marginTop: 8 }}
+      >
+        <span className="mi" aria-hidden>{flowStatus.kind === 'ok' ? 'check_circle' : 'block'}</span>
+        <span>{flowStatus.text}</span>
+      </div>
+    )
+  }
+  return (
+    <div className={`${styles.notice} ${styles.noticeInfo}`} style={{ marginTop: 8 }}>
+      <span className="mi" aria-hidden>info</span>
+      <span>Escolha a forma de pagamento</span>
+    </div>
+  )
+}
+
+function CheckoutInfo({ total, qty, maxQty }: Readonly<{ total: number, qty: number, maxQty: number }>) {
+  return (
+    <div className={styles.checkoutInfo}>
+      <span style={{ fontWeight: 700 }}>Valor a ser pago:</span>
+      <span>{fmtMoneyBRL(total)}</span>
+      <span style={{ color: 'var(--gray)' }}>Qtd: {Math.min(qty, maxQty)}</span>
+    </div>
+  )
+}
+
+function TicketSummary({ selected, qty, maxQty }: Readonly<{ selected?: TicketType, qty: number, maxQty: number }>) {
+  return (
+    <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 12, padding: '8px 12px', background: '#fff' }}>
+      <div className={styles.summaryRow} style={{ gap: 12 }}>
+        <span style={{ flex: 1, fontWeight: 700 }}>Ingresso</span>
+        <span style={{ fontWeight: 700 }}>Valor</span>
+        <span style={{ fontWeight: 700 }}>Qtd</span>
+      </div>
+      <div className={styles.summaryRow} style={{ gap: 12 }}>
+        <span style={{ flex: 1 }}>{selected?.name || '—'}</span>
+        <span>{fmtMoneyBRL(Number(selected?.price || 0))}</span>
+        <span>{Math.min(qty, maxQty)}</span>
+      </div>
+    </div>
+  )
+}
+
+function ActionButtons({ onBack, onPay, flowStatus, disabled }: Readonly<{ onBack: () => void, onPay: () => void, flowStatus: FlowStatus, disabled: boolean }>) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 'auto', paddingTop: 16 }}>
+      <button
+        className={`${styles.btn} ${styles.ghost}`}
+        onClick={onBack}
+        disabled={flowStatus.kind === 'ok' && flowStatus.text.includes('Processando')}
+      >
+        Voltar
+      </button>
+      <button
+        className={`${styles.btn} ${styles.primary}`}
+        onClick={onPay}
+        disabled={disabled || (flowStatus.kind === 'ok' && flowStatus.text.includes('Processando'))}
+      >
+        {flowStatus.kind === 'ok' && flowStatus.text.includes('Processando') ? 'Processando...' : 'Finalizar Pagamento'}
+      </button>
+    </div>
+  )
+}
+
+function PaymentFormContent(p: Readonly<{
+  method: PaymentMethod,
+  disabled: boolean,
+  card: CardState, setCard: (c: CardState) => void, cardValid: { name: boolean, number: boolean, expiry: boolean, cvv: boolean },
+  paypal: PayPalState, setPaypal: (p: PayPalState) => void, paypalValid: { email: boolean },
+  pix: PixState, setPix: (p: PixState) => void, pixValid: { key: boolean },
+  boleto: BoletoState, setBoleto: (b: BoletoState) => void, boletoValid: { name: boolean }
+}>) {
+  if (!p.method) {
+    return (
+      <div className={`${styles.notice} ${styles.noticeInfo}`}>
+        <span className="mi" aria-hidden>info</span>
+        <span>Selecione um método de pagamento</span>
+      </div>
+    )
+  }
+
+  if (p.method === 'FREE') {
+    return (
+      <div className={`${styles.notice} ${styles.noticeInfo}`}>
+        <span className="mi" aria-hidden>card_giftcard</span>
+        <span>Pedido gratuito — campos desabilitados</span>
+      </div>
+    )
+  }
+
+  if (p.method === 'CREDIT_CARD') return <CreditCardForm card={p.card} setCard={p.setCard} valid={p.cardValid} disabled={p.disabled} />
+  if (p.method === 'PAYPAL') return <PayPalForm paypal={p.paypal} setPaypal={p.setPaypal} valid={p.paypalValid} disabled={p.disabled} />
+  if (p.method === 'PIX') return <PixForm pix={p.pix} setPix={p.setPix} valid={p.pixValid} disabled={p.disabled} />
+  if (p.method === 'BOLETO') return <BoletoForm boleto={p.boleto} setBoleto={p.setBoleto} valid={p.boletoValid} disabled={p.disabled} />
+
+  return null
+}
+
+function CreditCardForm({ card, setCard, valid, disabled }: Readonly<{ card: CardState, setCard: (c: CardState) => void, valid: { name: boolean, number: boolean, expiry: boolean, cvv: boolean }, disabled: boolean }>) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <CreditCardField
+        label="Nome no cartão"
+        value={card.name}
+        onChange={e => setCard({ ...card, name: e.target.value })}
+        isValid={valid.name}
+        disabled={disabled}
+        placeholder="NOME IGUAL DO CARTÃO"
+        errorMessage="Nome inválido"
+      />
+      
+      <CreditCardField
+        label="Número do cartão"
+        value={card.number}
+        onChange={e => setCard({ ...card, number: fmtCardNumber(e.target.value) })}
+        isValid={valid.number}
+        disabled={disabled}
+        placeholder="0000 0000 0000 0000"
+        inputMode="numeric"
+        maxLength={19}
+        errorMessage="Número inválido"
+      />
+
+      <CreditCardField
+        label="Validade (MM/AA)"
+        value={fmtExpiry(card.expiry)}
+        onChange={e => setCard({ ...card, expiry: fmtExpiry(e.target.value) })}
+        isValid={valid.expiry}
+        disabled={disabled}
+        placeholder="MM/AA"
+        inputMode="numeric"
+        maxLength={5}
+        errorMessage="Validade inválida"
+      />
+
+      <CreditCardField
+        label="CVV"
+        value={card.cvv.replaceAll(/\D+/g, '')}
+        onChange={e => setCard({ ...card, cvv: onlyDigits(e.target.value).slice(0, 4) })}
+        isValid={valid.cvv}
+        disabled={disabled}
+        placeholder="123"
+        inputMode="numeric"
+        maxLength={4}
+        errorMessage="CVV inválido"
+      />
+    </div>
+  )
+}
+
+function CreditCardField({
+  label, value, onChange, isValid, disabled, placeholder, errorMessage, inputMode, maxLength
+}: Readonly<{
+  label: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  isValid: boolean
+  disabled: boolean
+  placeholder: string
+  errorMessage: string
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
+  maxLength?: number
+}>) {
+  const isInvalid = !!(value && !isValid)
+  return (
+    <div className={styles.field}>
+      <span className={styles.label}>{label}</span>
+      <input
+        className={`${styles.input} ${isInvalid ? styles.invalid : ''}`}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+      />
+      {isInvalid ? <span className={styles.errorText}>{errorMessage}</span> : null}
+    </div>
+  )
+}
+
+function PayPalForm({ paypal, setPaypal, valid, disabled }: Readonly<{ paypal: PayPalState, setPaypal: (p: PayPalState) => void, valid: { email: boolean }, disabled: boolean }>) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+        <span className={styles.label}>E-mail do PayPal</span>
+        <input
+          className={`${styles.input} ${paypal.email && !valid.email ? styles.invalid : ''}`}
+          type="email"
+          placeholder="seu@email.com"
+          value={paypal.email}
+          onChange={e => setPaypal({ email: e.target.value })}
+          disabled={disabled}
+        />
+        {paypal.email && !valid.email ? <span className={styles.errorText}>E-mail inválido</span> : null}
+      </div>
+    </div>
+  )
+}
+
+function PixForm({ pix, setPix, valid, disabled }: Readonly<{ pix: PixState, setPix: (p: PixState) => void, valid: { key: boolean }, disabled: boolean }>) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+        <span className={styles.label}>Chave PIX</span>
+        <input
+          className={`${styles.input} ${pix.key && !valid.key ? styles.invalid : ''}`}
+          placeholder="CPF, CNPJ, e-mail ou aleatória"
+          value={pix.key}
+          onChange={e => setPix({ key: e.target.value })}
+          disabled={disabled}
+        />
+        {pix.key && !valid.key ? <span className={styles.errorText}>Chave inválida</span> : null}
+      </div>
+    </div>
+  )
+}
+
+function BoletoForm({ boleto, setBoleto, valid, disabled }: Readonly<{ boleto: BoletoState, setBoleto: (b: BoletoState) => void, valid: { name: boolean }, disabled: boolean }>) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+        <span className={styles.label}>Nome do boleto</span>
+        <input
+          className={`${styles.input} ${boleto.name && !valid.name ? styles.invalid : ''}`}
+          placeholder="Nome completo"
+          value={boleto.name}
+          onChange={e => setBoleto({ name: e.target.value })}
+          disabled={disabled}
+        />
+        {boleto.name && !valid.name ? <span className={styles.errorText}>Nome inválido</span> : null}
       </div>
     </div>
   )

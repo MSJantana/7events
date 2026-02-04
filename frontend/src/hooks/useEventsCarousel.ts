@@ -17,6 +17,7 @@ export function useEventsCarousel() {
     return () => { cancelled = true }
   }, [])
 
+  /* Auto-rotation disabled for new layout
   useEffect(() => {
     if (!Array.isArray(events) || events.length <= 1) return
     const id = setInterval(() => {
@@ -24,6 +25,7 @@ export function useEventsCarousel() {
     }, 4000)
     return () => clearInterval(id)
   }, [events])
+  */
 
   return { events, activeIndex, setActiveIndex, setEvents }
 }
