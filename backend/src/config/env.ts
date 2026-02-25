@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(u => u.trim())
+const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:5174').split(',').map(u => u.trim())
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',

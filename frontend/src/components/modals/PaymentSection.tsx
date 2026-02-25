@@ -106,7 +106,7 @@ export default function PaymentSection(p: Readonly<{
 
   const cardNumberValid = disabled || (card.number ? luhnCheck(card.number) : false)
   const cardExpiryValid = disabled || (card.expiry ? validateExpiry(card.expiry) : false)
-  const cardCvvValid = disabled || (card.cvv ? /^[0-9]{3,4}$/.test(card.cvv) : false)
+  const cardCvvValid = disabled || (card.cvv ? /^\d{3,4}$/.test(card.cvv) : false)
   const cardNameValid = disabled || (card.name ? card.name.trim().length >= 3 : false)
   const paypalEmailValid = disabled || (!paypal.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paypal.email))
   const pixKeyValid = disabled || (!pix.key || pix.key.trim().length >= 5)

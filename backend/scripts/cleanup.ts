@@ -1,6 +1,8 @@
 import { prisma } from '../src/prisma'
 /// <reference types="node" />
 
+// Top-level await is not supported in CommonJS modules.
+// We must use an async IIFE here.
 (async () => {
   try {
     const env = String(process.env.NODE_ENV || 'development')

@@ -46,6 +46,17 @@ services:
       - app-network
     restart: always
 
+  frontend-qrcode:
+    image: msoftsantana/7events:frontend-qrcode-latest
+    container_name: 7events-frontend-qrcode
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
+    ports:
+      - "5174:80"
+    networks:
+      - app-network
+    restart: always
+
   nginx:
     image: nginx:alpine
     container_name: 7events-proxy

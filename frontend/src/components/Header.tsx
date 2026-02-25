@@ -88,16 +88,6 @@ export default function Header({
             <SevenEventsLogo />
           </div>
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            globalThis.open('/device/login', '_blank', 'noopener,noreferrer')
-          }}
-          className={styles.pill}
-        >
-          <span className="mi" aria-hidden>barcode_reader</span>
-          <span>LeitorQrCode</span>
-        </button>
         <nav className={styles.nav}>
           <button
             onClick={() => {

@@ -3,7 +3,6 @@ import { createContext, useContext, useState, useEffect, useMemo, useCallback, t
 interface DeviceAuthContextType {
   deviceApiKey: string | null
   setDeviceApiKey: (key: string | null) => void
-  isAuthenticated: boolean
 }
 
 const DeviceAuthContext = createContext<DeviceAuthContextType | undefined>(undefined)
@@ -28,7 +27,6 @@ export function DeviceAuthProvider({ children }: { readonly children: ReactNode 
   const value = useMemo(() => ({
     deviceApiKey: storedApiKey,
     setDeviceApiKey,
-    isAuthenticated: !!storedApiKey
   }), [storedApiKey, setDeviceApiKey])
 
   return (
@@ -38,7 +36,6 @@ export function DeviceAuthProvider({ children }: { readonly children: ReactNode 
   )
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useDeviceAuth() {
   const context = useContext(DeviceAuthContext)
   if (context === undefined) {
@@ -46,3 +43,4 @@ export function useDeviceAuth() {
   }
   return context
 }
+

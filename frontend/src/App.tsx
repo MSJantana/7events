@@ -3,11 +3,8 @@ import { Routes, Route } from 'react-router-dom'
 import SevenEventsPage from './pages/SevenEventsPage'
 import EventDetails from './pages/EventDetails'
 import CreateEventPage from './pages/CreateEventPage'
-import DeviceLogin from './pages/DeviceLogin'
-import DeviceCheckin from './pages/DeviceCheckin'
 import { useEffect } from 'react'
 import { useToast } from './hooks/useToast'
-
 import EventPurchasePage from './pages/EventPurchasePage'
 
 function App() {
@@ -31,8 +28,6 @@ function App() {
       <Route path="/create-event" element={<CreateEventPage />} />
       <Route path="/checkout/:slug" element={<EventPurchasePage />} />
       <Route path="/events/:slug" element={<EventDetails />} />
-      <Route path="/device/login" element={<DeviceLogin />} />
-      <Route path="/device/checkin" element={<DeviceCheckin />} />
     </Routes>
   )
 }
